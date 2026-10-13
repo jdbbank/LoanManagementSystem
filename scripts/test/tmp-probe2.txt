@@ -1,0 +1,15 @@
+customer_credits rows: 2
+{"id":"00000000-6000-4000-8000-000000000001","customerId":"00000000-2000-4000-8000-000000000003","b":"160000.00"}
+{"id":"00000000-6000-4000-8000-000000000002","customerId":"00000000-2000-4000-8000-000000000020","b":"900000.00"}
+latest audit rows:
+{"id":"4767318d-0aca-4eee-9315-0b8cb1a3fe92","action":"USER_CREATED","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000001","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:32.195930"}
+{"id":"41b586c7-f1d1-4d7d-9c1c-578678503803","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000010","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:30.288421"}
+{"id":"841672a6-9b29-4fd3-895a-358bf7faa8b0","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000009","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:30.151301"}
+{"id":"303420ff-1a98-44ec-8011-57134671ed7c","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000007","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:30.017981"}
+{"id":"19164b1c-67c1-4844-b44b-5c937fc4fc1b","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000006","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:29.889419"}
+{"id":"5bb9dd45-dba3-4030-a0db-62c66497838b","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000005","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:29.740890"}
+{"id":"a248e837-a466-401d-a6a2-779b747d0674","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000004","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:29.612808"}
+{"id":"ecedaf40-fe73-461f-b64c-aa041873726d","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000003","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:29.475135"}
+{"id":"a074540b-2533-426e-86ab-6d2071111eb6","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000002","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:29.334890"}
+{"id":"b59fdab9-fe19-4a60-918b-3144334c2dd9","action":"USER_LOGIN","loanId":null,"transactionId":null,"userId":"00000000-0000-4000-8000-000000000001","customerId":null,"amount":null,"createdAt":"2026-10-13 05:58:29.187354"}
+audit rows pointing at deleted users: 0

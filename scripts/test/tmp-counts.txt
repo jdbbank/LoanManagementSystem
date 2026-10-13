@@ -1,0 +1,2 @@
+configKeys=12 approval.checkerThreshold,approval.headThreshold,avatar.enabled,kyc.expiryWarningDays,kyc.maxTotalBytesPerCustomer,kyc.upload.maxFileSizeKb,password.maxLength,password.minLength,password.requireDigit,password.requireLowercase,password.requireSymbol,password.requireUppercase
+{"u":0,"d":130,"a":1260,"av":2,"ac":2,"no":239,"prt":203}

@@ -1,0 +1,74 @@
+02:8: import { PASSWORD, ROOT, api, check, errorMessage, isSealed, login, statusCheck, unseal } from '../lib/harness.mjs';
+02:29: /** The outbox holds sealed content; the suite opens it the same way the dispatcher does. */
+02:30: const latestOutbox = async (conn, userId, type) => {
+02:32: 'SELECT payload, bodyText, bodyHtml, recipientEmail, subject, status FROM notification_outbox WHERE type=? AND userId=? ORDER BY createdAt DESC LIMIT 1',
+02:41: return unseal(String(value));
+02:56: const latestOtp = (conn, userId) => latestOutbox(conn, userId, 'PASSWORD_RESET_OTP');
+02:181: const otpRow = await token(conn, userId, 'OTP');
+02:189: const otp = delivered?.openedPayload?.otp;
+02:190: check(CAT, 'OTP ถูกส่งออกทาง outbox (มีเหตุการณ์ PASSWORD_RESET_OTP)', {
+02:191: input: 'notification_outbox lookup',
+02:193: actual: delivered ? `type=PASSWORD_RESET_OTP recipient=${delivered.recipientEmail}` : 'no outbox row',
+02:200: ? 'พบใน notification_outbox.bodyText/bodyHtml/payload'
+02:207: note: 'outbox เก็บ body ที่ซีลด้วย AES-256-GCM (คีย์ NOTIFY_SECRET_KEY) และเปิดได้เฉพาะตอน dispatch',
+02:271: const otp2 = (await latestOtp(conn, userId))?.openedPayload?.otp;
+02:301: const linkInOutbox = await conn
+02:302: .query("SELECT COUNT(*) n FROM notification_outbox WHERE bodyText LIKE ? OR payload LIKE ? OR bodyHtml LIKE ?", [
+02:308: const linkDelivered = await latestOutbox(conn, userId, 'PASSWORD_RESET_LINK');
+02:309: check(CAT, 'link reset ถูกเก็บใน outbox แบบซีลเท่านั้น (ยังเปิดอ่านได้ตอน dispatch)', {
+02:313: ? 'no PASSWORD_RESET_LINK outbox row'
+02:314: : `plaintext=${linkInOutbox}, sealed=${[linkDelivered.bodyText, linkDelivered.bodyHtml, linkDelivered.payload].map((v) => isSealed(String(v))).join('/')}, linkI
+02:316: linkInOutbox === 0 &&
+02:389: const otp3 = (await latestOtp(conn, userId))?.openedPayload?.otp;
+02:391: const expiredOtp = await api('POST', '/api/auth/verify-otp', { body: { email: FIXTURE.email, otp: otp3 } });
+02:396: const otp4 = (await latestOtp(conn, userId))?.openedPayload?.otp;
+04:31: const res = await api('POST', '/api/customers', { token: op1, body: { fullName: name, phone: '020999999', nationalId: `kyc-${key}` } });
+06:6: // loans are only used for read-only refusal paths (non-ACTIVE loans, existing credit balances).
+06:60: 'customer_credits',
+06:92: await conn.query('DELETE FROM customer_credits WHERE customerId IN (?)', [custIds]);
+06:155: /** maker -> checker -> post, verifying every ledger/balance/audit effect against the oracle. */
+06:159: { loanId: loan.id, cashAmount: cash, ...(credit ? { creditToApply: credit } : {}) },
+06:295: // otherwise every later "outstanding unchanged" check compares against a stale balance
+06:341: statusCheck(CAT, 'cashAmount=0 + creditToApply>0 แต่ credit ไม่มี: 422 (insufficient credit)', await createReq({ loanId: probe.id, cashAmount: 0, creditToApply:
+06:345: statusCheck(CAT, 'creditToApply ติดลบ: 400', await createReq({ loanId: probe.id, cashAmount: 1000, creditToApply: -5 }), 400, {
+06:346: input: 'creditToApply=-5',
+06:546: // abandon the override request without posting (must not affect balances), keep it for cleanup check
+06:619: // ============================================ E. posting: allocation order + balance + credit
+06:737: const creditRow = (await rows(conn, 'SELECT balance FROM customer_credits WHERE customerId = ?', [C7]))[0];
+06:739: input: 'customer_credits.balance',
+06:741: actual: creditRow ? String(creditRow.balance) : 'no row',
+06:742: pass: !!creditRow && sameMoney(creditRow.balance, 75000),
+06:744: const creditLedger = await rows(conn, 'SELECT type, amount, balanceAfter FROM credit_ledger WHERE customerId = ? ORDER BY createdAt', [C7]);
+06:745: check(CAT, 'credit_ledger มีแถว ACCRUED 75,000 พร้อม balanceAfter', {
+06:748: actual: creditLedger.map((r) => [r.type, String(r.amount), String(r.balanceAfter)]),
+06:749: pass: creditLedger.length === 1 && creditLedger[0].type === 'ACCRUED' && sameMoney(creditLedger[0].amount, 75000) && sameMoney(creditLedger[0].balanceAfter, 750
+06:784: const avail = (await rows(conn, 'SELECT balance FROM customer_credits WHERE customerId = ?', [C5]))[0]?.balance;
+06:786: input: 'customer_credits.balance for C5',
+06:791: statusCheck(CAT, 'ขอใช้ credit เกินยอดที่มี: 422', await createReq({ loanId: cred.id, cashAmount: 0, creditToApply: 200000 }, tokens.op1), 422, {
+06:792: input: 'creditToApply 200,000 while 120,000 available',
+06:797: const credMade = await createReq({ loanId: cred.id, cashAmount: 0, creditToApply: toLak(credTotal) }, tokens.op1);
+06:813: const credLedger = await rows(conn, 'SELECT type, amount, balanceAfter FROM credit_ledger WHERE customerId = ? ORDER BY createdAt', [C5]);
+06:817: actual: JSON.stringify(credLedger.map((r) => [r.type, String(r.amount), String(r.balanceAfter)])),
+06:821: sameMoney(credLedger[0].balanceAfter, 120000) &&
+06:824: sameMoney(credLedger[1].balanceAfter, 20000),
+06:855: input: 'post of a payment approved against the old balance',
+06:975: // ============================================ G. credits endpoints
+06:976: const credList = await api('GET', '/api/credits');
+06:977: statusCheck(CAT, 'GET /api/credits: 200 (ทุก role อ่านได้)', credList, 200, { input: 'list' });
+06:978: const dbCreditSum = await rows(conn, 'SELECT customerId, balance FROM customer_credits');
+06:979: check(CAT, 'GET /api/credits คืนตรงตามตาราง customer_credits', {
+06:985: const ledgerRes = await api('GET', `/api/credits/ledger?customerId=${C7}`);
+06:986: statusCheck(CAT, 'GET /api/credits/ledger?customerId: 200', ledgerRes, 200, { input: C7 });
+06:992: expected: `${acc} - ${used} = balance`,
+06:996: const c5Led = await api('GET', `/api/credits/ledger?customerId=${C5}`);
+06:997: check(CAT, 'ledger ของ C5 ผ่าน API: ACCRUED + USED และ balance 20,000 ที่เหลือจากใช้ credit ปิด loan', {
+06:999: expected: { types: ['ACCRUED', 'USED'], balance: 20000 },
+06:1000: actual: { types: (c5Led.json.data.ledger ?? []).map((r) => r.type).sort(), balance: c5Led.json.data.currentBalance },
+06:1003: statusCheck(CAT, 'GET /api/credits/ledger โดยไม่มี customerId: 400', await api('GET', '/api/credits/ledger'), 400, {
+06:1007: const emptyLed = await api('GET', `/api/credits/ledger?customerId=${NIL}`);
+06:1008: check(CAT, 'ledger ของลูกค้าที่ไม่มีอยู่: 200 + ว่าง + balance 0 (ไม่ใช่ 404)', {
+06:1014: const seedCreditUntouched = (await rows(conn, 'SELECT balance FROM customer_credits WHERE customerId = ?', ['00000000-2000-4000-8000-000000000003']))[0];
+06:1016: input: 'seeded credit balance',
+06:1017: expected: expected.credits['00000000-2000-4000-8000-000000000003'].balance,
+06:1018: actual: String(seedCreditUntouched?.balance),
+06:1019: pass: sameMoney(seedCreditUntouched?.balance, expected.credits['00000000-2000-4000-8000-000000000003'].balance),

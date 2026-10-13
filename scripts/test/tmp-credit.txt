@@ -1,0 +1,6 @@
+2026-03 | PAYMENT | amt=400000.00 | cash=0.00 | credit=400000.00 | ca={"PENALTY":0,"PAST_INTEREST":0,"PAST_PRINCIPAL":400000}
+
+2025-10 expected collected=2000000.00 moneyIn=2000000.00 booked=25528000.00 txs=4
+2026-01 expected collected=68648000.00 moneyIn=68648000.00 booked=58577000.00 txs=7
+2026-03 expected collected=6950000.00 moneyIn=6950000.00 booked=2216000.00 txs=6
+2026-06 expected collected=10640033.34 moneyIn=12140033.34 booked=0.00 txs=6

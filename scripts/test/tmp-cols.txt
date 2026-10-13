@@ -1,0 +1,23 @@
+approval_steps: id,workflowId,level,status,userId,reason,decidedAt,createdAt
+
+approval_workflows: id,subjectType,subjectId,requiredLevels,currentLevelIndex,status,completedAt,createdAt
+
+credit_ledger: id,customerId,type,amount,balanceAfter,transactionId,createdAt
+
+customer_credits: id,customerId,currency,balance,updatedAt
+
+customers: id,customerNumber,fullName,phone,email,nationalId,address,createdAt,kycStatus,kycSubmittedBy,kycSubmittedAt,kycReviewedBy,kycReviewedAt,kycRejectionReason,kycAppliedPolicy
+
+financial_transaction_lines: id,transactionId,component,amount,createdAt
+
+financial_transactions: id,referenceNo,transactionType,status,loanId,customerId,amount,currency,referenceTransactionId,sourceRequestId,settlementAgreementId,componentAmounts,reason,rejectionReason,createdBy,postedBy,approvedAt,postedAt,createdAt
+
+kyc_documents: id,customerId,documentType,variant,fileName,mimeType,sizeBytes,checksum,issuedAt,expiresAt,note,uploadedBy,createdAt
+
+loan_products: id,code,name,interestRate,termMonths,currency,description,isActive,createdAt,interestRatePeriod,termValue,termUnit,penaltyPolicy
+
+payment_allocations: id,paymentRequestId,component,proposedAmount,finalAmount,createdAt,overridden
+
+payment_requests: id,requestNo,loanId,customerId,cashAmount,creditApplied,currency,status,previousRequestId,settlementAgreementId,note,rejectionReason,createdBy,approvedBy,rejectedBy,approvedAt,rejectedAt,createdAt
+
+settlement_agreements: id,agreementNo,loanId,customerId,agreedAmount,currency,status,reason,createdBy,decidedBy,decidedAt,decisionReason,createdAt

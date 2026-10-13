@@ -1,0 +1,14 @@
+booked sum 518623100.00 vs totals.disbursed 518623100.00
+disbursedCash sum 431000100.00 vs totals.disbursedCash 431000100.00
+collected sum 128695100.00 vs totals.collected 128695100.00
+interestPaid sum 72417000.00 vs 72417000.00
+penaltyPaid sum 5690000.00 vs 5690000.00
+principalPaid sum 69276100.00 vs 69276100.00
+reversed sum 20148000.00 vs 20148000.00
+waived sum 240000.00 vs 240000.00
+writtenOff sum 23936000.00 vs 23936000.00
+tx count sum 71 vs totals.postedTransactions 71
+closing last month 375068000.00 vs totals.closingOutstanding 375068000.00
+loans keys 21
+months 16
+largest LN-TST-000010 closed#6

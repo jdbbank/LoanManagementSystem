@@ -1,0 +1,101 @@
+export function statusAfterPost(state, type) {
+  const outstanding = totalOf(state.components);
+  if (type === 'WRITE_OFF') return outstanding === 0 ? 'WRITTEN_OFF' : 'ACTIVE';
+  if (type === 'WRITE_OFF_REVERSAL') return outstanding > 0 ? 'ACTIVE' : 'WRITTEN_OFF';
+  if (outstanding === 0) return state.status === 'WRITTEN_OFF' ? 'WRITTEN_OFF' : 'CLOSED';
+  return 'ACTIVE';
+}
+
+/**
+ * Applies one posted event to the loan state and returns what the system must have done.
+ * `amountCents` is the transaction amount, `creditAppliedCents` only for payments.
+ */
+export function postEvent(state, event) {
+  const { type, amountCents = 0, components = null, creditAppliedCents = 0 } = event;
+  const before = totalOf(state.components);
+  const result = {
+    type,
+    beforeCents: before,
+    allocation: { ...emptyComponents() },
+    creditAccruedCents: 0,
+    creditUsedCents: creditAppliedCents,
+    afterCents: before,
+    statusBefore: state.status,
+    statusAfter: state.status,
+  };
+
+  switch (type) {
+    case 'DISBURSEMENT': {
+      state.components.PAST_PRINCIPAL += amountCents;
+      state.components.PAST_INTEREST += event.interestCents ?? 0;
+      break;
+    }
+    case 'PAYMENT':
+    case 'SETTLEMENT_PAYMENT': {
+      const paidTotal = amountCents + creditAppliedCents;
+      const { allocation, overpaymentCents } = allocateComponents(paidTotal, state.components);
+      result.allocation = allocation;
+      result.creditAccruedCents = overpaymentCents;
+      applyDelta(state, allocation);
+      break;
+    }
+    case 'PAYMENT_REVERSAL': {
+      const source = event.originalAllocation ?? event.components;
+      const { reversed } = reverseAllocation(source, amountCents);
+      result.allocation = reversed;
+      restoreDelta(state, reversed);
+      break;
+    }
+    case 'PENALTY': {
+      state.components.PENALTY += amountCents;
+      break;
+    }
+    case 'WAIVER': {
+      const target = components ?? { PENALTY: amountCents };
+      assertReliefFits(state, target, 'waiver');
+      applyDelta(state, target);
+      result.allocation = target;
+      break;
+    }
+    case 'WRITE_OFF': {
+      const target = components ?? { ...state.components };
+      assertReliefFits(state, target, 'write-off');
+      applyDelta(state, target);
+      result.allocation = target;
+      break;
+    }
+    case 'WRITE_OFF_REVERSAL': {
+      // Same locked rule as payment reversals: a partial reversal restores the original
+      // write-off composition in order (penalty, interest, principal), never pro-rata.
+      const source = event.originalAllocation ?? event.components;
+      const target = event.originalAllocation ? reverseAllocation(source, amountCents).reversed : { ...emptyComponents(), ...source };
+      restoreDelta(state, target);
+      result.allocation = target;
+      break;
+    }
+    case 'ADJUSTMENT': {
+      // Adjustment carries signed component deltas (locked section 11): positive adds to
+      // outstanding, negative corrects it down. No component may go below zero.
+      const target = components ?? { ...emptyComponents() };
+      for (const c of COMPONENTS) {
+        if (state.components[c] + (target[c] ?? 0) < 0) {
+          throw new Error(`oracle: adjustment would make ${c} negative on loan ${state.id}`);
+        }
+      }
+      restoreDelta(state, target);
+      result.allocation = target;
+      break;
+    }
+    default:
+      throw new Error(`oracle: unknown transaction type ${type}`);
+    }
+
+  result.afterCents = totalOf(state.components);
+  state.status = statusAfterPost(state, type);
+  result.statusAfter = state.status;
+  state.history.push({ ...result, at: event.postedAtIso });
+  return result;
+}
+
+/** Monthly report aggregates over POSTED transactions only. */
+

@@ -1,0 +1,110 @@
+{
+  "cases": 49,
+  "pass": 36,
+  "f": [
+    {
+      "id": "E2E-009",
+      "name": "F-CONC-3: Checker สองคนอนุมัติ approval step เดียวกันพร้อมกัน — ต้องมีผู้ชนะคนเดียว",
+      "input": "penalty 5000000.00 (ระดับ CHECKER -> HEAD) แล้ว POST /api/approvals/steps/f8e4d7a5-0d6d-4195-b1dc-fdaa2fbeb1b4/decision x2 (checker1, checker2)",
+      "expected": "2xx=1 และอีกครั้ง 409 \"This approval step has already been decided\"",
+      "actual": "2xx=2 codes=200,200 {\"data\":{\"workflow\":{\"id\":\"e5b91781-4010-42ae-9dc7-82fd8efb3076\",\"subjectType\":\"FINANCIAL_",
+      "note": "approval.service.ts:132-143 อ่าน step/workflow โดยไม่มี lock — ถ้าผ่านทั้งคู่ ระดับ HEAD อาจถูกข้าม (ตรวจ case ถัดไป)"
+    },
+    {
+      "id": "E2E-011",
+      "name": "C: หลักฐานการอนุมัติระดับ CHECKER มีครั้งเดียวใน audit trail",
+      "input": "COUNT audit APPROVAL_STEP_APPROVED ของ transaction ที่กดซ้ำพร้อมกัน",
+      "expected": "<= 1",
+      "actual": "2 แถว",
+      "note": ""
+    },
+    {
+      "id": "E2E-017",
+      "name": "F-CONC-1: ใช้ credit 400,000 บนเงินกู้ 2 ฉบับพร้อมกัน — ต้องมีอย่างน้อยหนึ่งครั้งที่ถูกปฏิเสธ",
+      "input": "Promise.all POST /transactions/:id/post x2 (approve codes=200/200)",
+      "expected": "2xx <= 1 (ครั้งถัดไปต้อง 422 Insufficient customer credit)",
+      "actual": "2xx=2 codes=200,200 {\"data\":{\"transaction\":{\"id\":\"162e84a3-edf2-4540-aeac-f6c1c29bbc85\",\"referenceNo\":\"FT-0000",
+      "note": "posting-engine.service.ts:198-207 อ่าน/ปรับ credit โดย lock เฉพาะ loan ของตัวเอง (คนละแถว) -> แถว CustomerCredit ไม่มี lock"
+    },
+    {
+      "id": "E2E-018",
+      "name": "F-CONC-1: บัญชี credit ปิดยอด — ACCRUED - USED ต้องเท่ากับ balance ที่เก็บไว้",
+      "input": "SUM(credit_ledger ACCRUED/USED) vs customer_credits.balance ของ C5",
+      "expected": "-400000.00 = balance",
+      "actual": "accrued=400000.00 used=800000.00 balance=0.00 ledger=[[\"ACCRUED\",\"400000.00\",\"400000.00\"],[\"USED\",\"400000.00\",\"0.00\"],[\"USED\",\"400000.00\",\"0.00\"]]",
+      "note": ""
+    },
+    {
+      "id": "E2E-019",
+      "name": "F-CONC-1: ยอด credit ที่ใช้รวม (USED) ต้องไม่เกิน 400,000 ที่มีอยู่จริง (เงินไม่ถูกเสกขึ้น)",
+      "input": "SUM(amount) ของ credit_ledger type=USED",
+      "expected": "<= 400000.00",
+      "actual": "800000.00",
+      "note": ""
+    },
+    {
+      "id": "E2E-022",
+      "name": "LC3: ยอดคงค้างจริง = oracle ทุกทศนิยม (race ไม่ทำให้เงินงอกหรือหาย)",
+      "input": "GET /api/loans/LN-000025",
+      "expected": "PENALTY=0.00 PAST_INTEREST=108000.00 PAST_PRINCIPAL=1000000.00 total 1108000.00",
+      "actual": "PENALTY=0.00 PAST_INTEREST=0.00 PAST_PRINCIPAL=708000.00 total 708000.00 | credit บน LC3",
+      "note": ""
+    },
+    {
+      "id": "E2E-030",
+      "name": "F-CONC-4: OTP เดียวถูกนำไป verify พร้อมกัน 3 ครั้ง — ต้องแลก reset link ได้ครั้งเดียว (single use)",
+      "input": "Promise.all x3 POST /api/auth/verify-otp ด้วยรหัสที่ถูก",
+      "expected": "2xx <= 1",
+      "actual": "2xx=3 codes=200,200,200",
+      "note": "auth.router.ts:145 อ่าน secret ด้วย ds.manager (นอก transaction) แล้วค่อย consumeSecret ที่ :161 -> ทุก request เห็น usedAt=NULL"
+    },
+    {
+      "id": "E2E-033",
+      "name": "F-CONC-4: การเดารหัสผิดพร้อมกัน 8 ครั้งต้องถูกนับครบและ burn ภายใน 5 ครั้ง",
+      "input": "Promise.all x8 verify-otp ด้วยรหัสผิด (400=8, 429=0)",
+      "expected": "attempts >= 5 และแถวถูก burn (usedAt != NULL)",
+      "actual": "attempts=1 usedAt=NULL",
+      "note": "password-reset.service.ts:111 row.attempts += 1 แล้ว save ด้วย ds.manager (ไม่มี transaction/lock) -> lost update"
+    },
+    {
+      "id": "E2E-034",
+      "name": "F-CONC-4: หลังเดารหัสผิดครบ 5 ครั้ง OTP ต้องใช้ไม่ได้แม้ใส่รหัสที่ถูก",
+      "input": "verify-otp ด้วยรหัสที่ถูกหลัง burst ของรหัสผิด",
+      "expected": "400 (ถูก burn แล้ว)",
+      "actual": "200 {\"verified\":true,\"resetUrl\":\"/reset-password?token=yVR1PtQIr_3c4aIdRfpIcjikYyW4E",
+      "note": "ถ้าตอบ 2xx แปลว่าขอบเขต brute-force กว้างกว่ากติกา 5 ครั้งที่ล็อกไว้"
+    },
+    {
+      "id": "E2E-035",
+      "name": "F-CONC-4: reset link ใช้ครั้งเดียว — ส่ง 2 รหัสผ่านต่างกันไปพร้อมกันต้องมีผู้ชนะคนเดียว",
+      "input": "Promise.all x2 POST /api/auth/reset-password ด้วย link เดียว (password ต่างกัน)",
+      "expected": "2xx <= 1",
+      "actual": "2xx=2 codes=200,200",
+      "note": "auth.router.ts:212 findActiveSecret อ่านนอก transaction -> ผ่านทั้งคู่แล้วเขียน passwordHash ทับกัน"
+    },
+    {
+      "id": "E2E-036",
+      "name": "F: รหัสผ่านที่ระบบ \"ยืนยันว่าตั้งสำเร็จ\" ต้องเป็นรหัสที่ login ได้จริง",
+      "input": "POST /api/auth/login x2 (A=401, B=200) หลัง race reset",
+      "expected": "รหัสจากรายการที่ตอบ 200 เท่านั้นที่ login ผ่าน",
+      "actual": "reset codes=200,200 loginA=401 loginB=200",
+      "note": ""
+    },
+    {
+      "id": "E2E-040",
+      "name": "F-CONC-5: ยอดที่ POSTED ตามข้อตกลงปิดบัญชีต้อง <= agreedAmount 300,000 (จ่ายซ้ำไม่ได้)",
+      "input": "SUM(amount) ของ SETTLEMENT_PAYMENT ที่ POSTED (2 โพสต์แข่งกัน codes=200,200)",
+      "expected": "<= 300000.00 และ 1 transaction",
+      "actual": "600000.00 จาก 2 transactions",
+      "note": "settlements.router.ts:170-181 อ่าน agreement/loan นอก transaction ส่วน createPaymentRequestRecord มี lock เฉพาะแถว loan ของตัวเอง"
+    },
+    {
+      "id": "E2E-041",
+      "name": "LS: ยอดคงค้างจริง = oracle ทุกทศนิยม (race ไม่ทำให้เงินงอกหรือหาย)",
+      "input": "GET /api/loans/LN-000027",
+      "expected": "PENALTY=0.00 PAST_INTEREST=0.00 PAST_PRINCIPAL=1362000.00 total 1362000.00",
+      "actual": "PENALTY=0.00 PAST_INTEREST=0.00 PAST_PRINCIPAL=1062000.00 total 1062000.00 | settlement payment กระทบยอดครั้งเดียว",
+      "note": ""
+    }
+  ]
+}

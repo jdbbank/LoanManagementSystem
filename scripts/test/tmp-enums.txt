@@ -1,0 +1,7 @@
+[{"subjectType":"FINANCIAL_TRANSACTION","n":75,"rl":"[\"CHECKER\",\"HEAD\",\"ADMIN\"],[\"CHECKER\",\"HEAD\"],[\"CHECKER\"]"},{"subjectType":"SETTLEMENT_AGREEMENT","n":4,"rl":"[\"CHECKER\",\"HEAD\"]"}]
+[{"status":"PENDING_APPROVAL","n":1},{"status":"POSTED","n":71},{"status":"REJECTED","n":1}]
+[{"transactionType":"DISBURSEMENT","n":21},{"transactionType":"PAYMENT","n":32},{"transactionType":"PENALTY","n":7},{"transactionType":"PAYMENT_REVERSAL","n":3},{"transactionType":"ADJUSTMENT","n":1},{"transactionType":"SETTLEMENT_PAYMENT","n":2},{"transactionType":"WAIVER","n":1},{"transactionType":"WRITE_OFF","n":4},{"transactionType":"WRITE_OFF_REVERSAL","n":2}]
+[{"status":"PENDING","n":2},{"status":"APPROVED","n":34},{"status":"REJECTED","n":2}]
+[{"status":"APPROVED","n":4}]
+[{"kycStatus":"VERIFIED","n":20},{"kycStatus":"PENDING","n":10},{"kycStatus":"NOT_VERIFIED","n":10}]
+[{"status":"ACTIVE","n":14},{"status":"CLOSED","n":6},{"status":"WRITTEN_OFF","n":1}]

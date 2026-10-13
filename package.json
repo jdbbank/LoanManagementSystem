@@ -1,0 +1,26 @@
+{
+  "name": "loan-management-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Loan Management System - React + Node.js + TypeScript (per locked requirements)",
+  "workspaces": [
+    "server",
+    "web",
+    "mailer"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "dev:mailer": "npm run dev -w mailer",
+    "build": "npm run build -w server && npm run build -w web && npm run build -w mailer",
+    "test": "npm run test -w server",
+    "test:e2e:oracle": "node scripts/test/oracle-selftest.mjs",
+    "test:e2e:backup": "node scripts/test/backup-test-db.mjs",
+    "test:e2e:reset": "node scripts/test/reset-db.mjs --confirm-loan_management",
+    "test:e2e:seed": "node scripts/test/seed-test-data.mjs",
+    "test:e2e:run": "node scripts/test/run-e2e.mjs",
+    "test:e2e:full": "node scripts/test/run-e2e-full.mjs",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down"
+  }
+}

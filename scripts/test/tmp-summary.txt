@@ -1,0 +1,128 @@
+E2E-001 P ทุก role ที่มีอยู่อ่าน list of settlements ได้ (200)
+E2E-002 P ไม่มี token: 401
+E2E-003 P token ปลอม: 401
+E2E-004 P VIEWER ไม่สามารถสร้างข้อตกลง: 403
+E2E-005 P VIEWER ไม่สามารถชำระเงินตามข้อตกลง: 403
+E2E-006 P VIEWER ไม่สามารถขอยกยอดขาด: 403
+E2E-007 P ส่ง body ว่าง: 400 Validation failed
+E2E-008 P loanId ไม่ใช่ uuid: 400
+E2E-009 P loanId ไม่存在于ระบบ: 404
+E2E-010 P agreedAmount = 0: 400 (ต้องเป็นจำนวนบวกเท่านั้น)
+E2E-011 P agreedAmount = -1000: 400 (ต้องเป็นจำนวนบวกเท่านั้น)
+E2E-012 P agreedAmount = abc: 400 (ต้องเป็นจำนวนบวกเท่านั้น)
+E2E-013 P reason ว่าน: 400
+E2E-014 P reason ยาวเกิน 1000 ตัวอักษร: 400
+E2E-015 P agreedAmount มากกว่ายอดคงค้าง: 422 และข้อความบอกยอดทั้งสองข้าง
+E2E-016 P ข้อตกลงบน loan สถานะ CLOSED: 422 ต้องเป็น ACTIVE เท่านั้น
+E2E-017 P ข้อตกลงบน loan สถานะ WRITTEN_OFF: 422 ต้องเป็น ACTIVE เท่านั้น
+E2E-018 P agreedAmount = ยอดคงค้างพอดี: 201 (อนุญาต ไม่มียอดขาดให้ยก)
+E2E-019 P โครงสร้าง agreement ที่ตอบกลับครบตาม entity
+E2E-020 P agreedAmount ต่ำกว่ายอดคงค้าง: 201 (ไม่มีกฎขั้นต่ำ/ส่วนลด — ที่เหลือกลายเป็นยอดขาด)
+E2E-021 P agreedAmount ถูกปัดเป็น 2 ตำแหน่ง (round2) ก่อนเก็บ
+E2E-022 P loan เดียวกันมีข้อตกลง PENDING ได้หลายฉบับ (ไม่มีกฎกันซ้ำ — ข้อสังเกต F-SET-1)
+E2E-023 P การสร้างข้อตกลงไม่สร้าง financial transaction ใด ๆ (document ล้วน ๆ)
+E2E-024 P ข้อตกลงเข้า approval_workflows แบบ subjectType=SETTLEMENT_AGREEMENT และระดับตาม threshold
+E2E-025 P ข้อตกลงมูลค่า 500,000 (<= checkerThreshold 1,000,000): requiredLevels = CHECKER
+E2E-026 P ข้อตกลงมูลค่า 2,000,000 (<= headThreshold 10,000,000): requiredLevels = CHECKER+HEAD
+E2E-027 P ข้อตกลงมูลค่า 12,000,000 (> headThreshold): requiredLevels = CHECKER+HEAD+ADMIN
+E2E-028 P maker ตัดสินใจขั้นตอนของคำขอตัวเอง: 422 Maker-Checker separation
+E2E-029 P ข้อตกลง 1,800,000 ยังไม่อนุมัติ: สถานะ PENDING_APPROVAL
+E2E-030 P คิว /approvals/pending คืนขั้นตอนปัจจุบันให้ทุก role (ไม่ได้กรองตาม role — UI ต้องกรองเอง)
+E2E-031 P HEAD พยายามตัดสินขั้นตอนระดับ CHECKER ที่ถึงตาอยู่: 403 role cannot decide (role guard ทำงานก่อน)
+E2E-032 P ข้ามไปตัดสินขั้นตอน HEAD ก่อนถึงตา: 409 waiting for CHECKER
+E2E-033 P ตัดสินขั้นเดิมซ้ำ: 409 already been decided
+E2E-034 P CHECKER พยายามตัดสินขั้นตอน HEAD ที่ถึงตาแล้ว: 403 role cannot decide
+E2E-035 P REJECT โดยไม่ใส่ reason: 400
+E2E-036 P ขั้น CHECKER ผ่านแล้ว workflow ยังเปิด (currentLevelIndex เลื่อนไป HEAD)
+E2E-037 P REJECT ทำ agreement เป็น REJECTED พร้อม decidedBy/decidedAt/decisionReason
+E2E-038 P ข้อตกลงที่ถูกปฏิเสธ: ห้ามรับชำระเงิน (422 must be APPROVED first)
+E2E-039 P workflow ที่ปิดแล้ว: ตัดสินเพิ่มไม่ได้ 409
+E2E-040 P ชำระเงินตามข้อตกลงที่ยัง PENDING_APPROVAL: 422
+E2E-041 P agreement id ไม่รู้จัก: 404
+E2E-042 P cashAmount ติดลบ: 400 (zod min 0)
+E2E-043 P cash + credit = 0: 400 "Settlement payment amount must be greater than zero"
+E2E-044 P ข้อตกลง 1,500,000 อนุมัติครบ 2 ระดับแล้ว
+E2E-045 P อนุมัติ agreement ไม่ขยับเงิน: ยอดคงค้างเท่าเดิมก่อนชำระเงิน (locked: ข้อตกลงไม่ใช่รายการการเงิน)
+E2E-046 P ชำระเงินมากกว่า agreedAmount: 422 exceeds the agreed amount
+E2E-047 P ใช้ credit ลููกค้าเมื่อไม่มีวงเงิน: 422 Insufficient customer credit
+E2E-048 P เอารหัส agreement ของ loan อื่นมาจ่ายกับ loan นี้: 422 belongs to a different loan
+E2E-049 P settlement-payment สร้าง payment request พร้อม settlementAgreementId + note เริ่มต้น
+E2E-050 P proposed allocation ของ settlement payment เป็นแบบเรียงส่วน (penalty→interest→principal)
+E2E-051 P อนุมัติ settlement payment แล้วเกิด transaction ชนิด SETTLEMENT_PAYMENT (ไม่ใช่ PAYMENT)
+E2E-052 P settlement payment 700,000: ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-053 P settlement payment 700,000: สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-054 P settlement payment 700,000: ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-055 P โพสต์ซ้ำ: 422 Only APPROVED transactions can be posted
+E2E-056 P settlement payment 800,000 (รวมครบ agreedAmount): ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-057 P settlement payment 800,000 (รวมครบ agreedAmount): สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-058 P settlement payment 800,000 (รวมครบ agreedAmount): ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-059 P GET /api/settlements/:id แสดง paymentRequests และ transactions ที่เชื่อมกันครบ
+E2E-060 P transactions ที่เชื่อม agreement มี settlementAgreementId ตรงกันทุกรายการ
+E2E-061 P waive-shortfall บน agreement ที่ยังไม่ APPROVED: 422 ระบุสถานะปัจจุบัน
+E2E-062 P path ผิดของ agreement (ไม่มี route นี้): 404
+E2E-063 P VIEWER ขอ waive-shortfall: 403
+E2E-064 P waive-shortfall โดย reason ว่าน: 400
+E2E-065 P ยังไม่ชำระเงินตามข้อตกลง: waive ได้แต่ "ยอดที่จ่ายจริง (0) ต่ำกว่า agreedAmount" = 422
+E2E-066 P settlement payment 250,000 (จ่ายไม่ครบ agreed): ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-067 P settlement payment 250,000 (จ่ายไม่ครบ agreed): สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-068 P settlement payment 250,000 (จ่ายไม่ครบ agreed): ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-069 P จ่ายไม่ครบตาม agreedAmount: waive ยังถูกปฏิเสธ พร้อมตัวเลข netPaid ที่ถูกต้อง
+E2E-070 P settlement payment 150,000 (netPaid ครบ 400,000): ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-071 P settlement payment 150,000 (netPaid ครบ 400,000): สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-072 P settlement payment 150,000 (netPaid ครบ 400,000): ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-073 P netPaid ครบตาม agreedAmount แล้ว: waive-shortfall สร้าง WAIVER transaction PENDING_APPROVAL
+E2E-074 P WAIVER จาก settlement มี settlementAgreementId และ reason อ้างอิงเลข agreement
+E2E-075 P waiver ผ่าน approval แล้วโพสต์ได้: loan ปิดบัญชี (CLOSED) ยอดคงค้างเป็น 0 ทุกส่วน
+E2E-076 P waive shortfall of settlement: ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-077 P waive shortfall of settlement: สถานะ loan = CLOSED (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-078 P waive shortfall of settlement: ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-079 P หลัง settlement payment ครบ + waive ยอดขาด: สถานะ CLOSED และ outstanding 0.00
+E2E-080 P waive ซ้ำเมื่อไม่มียอดขาด: 422 no outstanding shortfall
+E2E-081 P ข้อตกลง 200,000 บนหนี้ 300,000 อนุมัติครบระดับ CHECKER
+E2E-082 P settlement payment 200,000 ของ A1: ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-083 P settlement payment 200,000 ของ A1: สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-084 P settlement payment 200,000 ของ A1: ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-085 P reverse settlement payment 100,000: ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-086 P reverse settlement payment 100,000: สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-087 P reverse settlement payment 100,000: ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-088 P reverse settlement payment แล้ว: waive ถูกปฏิเสธเพราะ netPaid ต่ำกว่า agreedAmount
+E2E-089 P settlement payment เพิ่ม 100,000 ให้ netPaid ครบ: ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-090 P settlement payment เพิ่ม 100,000 ให้ netPaid ครบ: สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-091 P settlement payment เพิ่ม 100,000 ให้ netPaid ครบ: ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-092 P เมื่อ netPaid กลับมาครบ (นับ reverse ด้วย): waive อนุญาตอีกครั้ง
+E2E-093 P waive ยอดคงค้างที่เหลือของ A1: ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-094 P waive ยอดคงค้างที่เหลือของ A1: สถานะ loan = CLOSED (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-095 P waive ยอดคงค้างที่เหลือของ A1: ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-096 P เส้นทาง reverse + ชดเชย + waive: A1 ปิดบัญชีด้วยยอดคงค้าง 0 (netPaid นับเฉพาะ POSTED)
+E2E-097 P ชำระเต็มยอดด้วยเส้นทางปกติ (ปิด loan): ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-098 P ชำระเต็มยอดด้วยเส้นทางปกติ (ปิด loan): สถานะ loan = CLOSED (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-099 P ชำระเต็มยอดด้วยเส้นทางปกติ (ปิด loan): ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-100 P loan ถูกปิดด้วยรายการอื่นไปแล้ว: settlement-payment ถูกปฏิเสธตามสถานะ loan
+E2E-101 P waive 19,600,000 เพื่อให้หนี้เหลือ 4,000,000 ต่ำกว่า agreedAmount: ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-102 P waive 19,600,000 เพื่อให้หนี้เหลือ 4,000,000 ต่ำกว่า agreedAmount: สถานะ loan = ACTIVE (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-103 P waive 19,600,000 เพื่อให้หนี้เหลือ 4,000,000 ต่ำกว่า agreedAmount: ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-104 P ชำระเงินตามข้อตกลงมากกว่ายอดคงค้างที่เหลือ (แต่ไม่เกิน agreedAmount): รับได้ 201
+E2E-105 P settlement payment 5,000,000 (จ่ายเกินยอดคงค้างที่เหลือ 1,000,000): ยอดคงค้างรายส่วนหลังโพสต์ตรงกับ oracle
+E2E-106 P settlement payment 5,000,000 (จ่ายเกินยอดคงค้างที่เหลือ 1,000,000): สถานะ loan = CLOSED (ปิดบัญชีเมื่อยอดคงค้างทุกส่วนเป็น 0)
+E2E-107 P settlement payment 5,000,000 (จ่ายเกินยอดคงค้างที่เหลือ 1,000,000): ledger lines มีเฉพาะส่วนที่ไม่ใช่ 0 และถูกเครื่องหมาย
+E2E-108 P โพสต์ตอบค่า excess = ส่วนที่เกินยอดคงค้าง
+E2E-109 P ส่วนที่เกินยอดคงค้างกลายเป็น customer credit (ACCRUED) ไม่ใช่ลบยอดหนี้ซ้ำ
+E2E-110 P หนี้ปิดพอดีเมื่อมี agreement + waiver + payment ครม: A4 CLOSED และยอดคงค้าง 0 (credit ไม่ลดหนี้ซ้ำ)
+E2E-111 P PUT /api/settlements/:id ไม่มี route (ห้ามแก้/ลบข้อตกลง): 404
+E2E-112 P PATCH /api/settlements/:id ไม่มี route (ห้ามแก้/ลบข้อตกลง): 404
+E2E-113 P DELETE /api/settlements/:id ไม่มี route (ห้ามแก้/ลบข้อตกลง): 404
+E2E-114 P GET /api/settlements/:id ของ id ที่ไม่มีการ์ด: 404
+E2E-115 P GET /api/settlements?loanId= กรองเหลือเฉพาะของ loan นั้น
+E2E-116 P filter status=APPROVED ได้เฉพาะ APPROVED; ค่าไม่รู้จักคืนรายการว่าน (200 ไม่ใช่ 400)
+E2E-117 P pagination clamp: limit 500 -> 100, page 0 -> 1
+E2E-118 P เกิด notification SETTLEMENT_REQUESTED + SETTLEMENT_DECIDED ให้ลูกค้าของ loan
+E2E-119 P เนื้อหา notification ถูกซีลในฐานข้อมูล แต่เปิดได้จริงและมีเลขสัญญาในข้อความ
+E2E-120 P audit trail บันทึก CREATED + APPROVED ของข้อตกลง พร้อมมูลค่าและสถานะใหม่
+E2E-121 P ทุก loan ของ suite (5 ฉบับ): ยอดคงค้าง = Σ signed lines ของรายการ POSTED เท่านั้น (invariant #1)
+E2E-122 P ไม่มี loan ใดมียอดคงค้างติดลบจากเส้นทาง settlement (จ่ายเกิน+ยกยอดต้องจบที่ 0)
+E2E-123 P สถานะ loan ทุกฉบับสอดคล้องกับยอดคงค้าง (0 -> CLOSED, >0 -> ACTIVE)
+E2E-124 P ข้อมูล seed: agreement ทั้ง 4 ฉบับ (SA-TST-000001..4) ไม่ถูก suite นี้แก้
+E2E-125 P หลัง purge: จำนวนแถวทุกตารางกลับเท่าก่อนเริ่ม suite
+E2E-126 P ข้อมูล seed ยังครบ 21 loan และยอดคงค้างรวมเท่าเดิม
+E2E-127 P agreement ของ suite หายจริงหลัง purge: 404
+E2E-128 P ไม่เหลือ workflow หรือ agreement กำพร้าหลัง purge

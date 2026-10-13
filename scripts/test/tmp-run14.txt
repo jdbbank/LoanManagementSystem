@@ -1,0 +1,4 @@
+2026-10-13T06:15:26.218Z concurrency           50 cases   37 pass   13 FAIL  E2E-009,E2E-011,E2E-017,E2E-018,E2E-019,E2E-022,E2E-031,E2E-034,E2E-035,E2E-036,E2E-037,E2E-041,E2E-042
+----------------------------------------------------------------
+concurrency              37 pass   13 fail
+TOTAL 50 cases, 13 failures -> scripts/test/results.json

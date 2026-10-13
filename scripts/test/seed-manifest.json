@@ -1,0 +1,270 @@
+{
+  "generatedAt": "2026-10-13 01:25:33",
+  "seed": 12345,
+  "referenceNow": "2026-10-13T09:30:00.000Z",
+  "database": "loan_management",
+  "testPasswordPolicyNote": "all seeded users share the password configured in dataset.mjs; it is not written to this file",
+  "testUsers": [
+    {
+      "username": "test_admin",
+      "role": "ADMIN",
+      "email": "test_admin@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_head",
+      "role": "HEAD_APPROVER",
+      "email": "test_head@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_checker1",
+      "role": "CHECKER",
+      "email": "test_checker1@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_checker2",
+      "role": "CHECKER",
+      "email": "test_checker2@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_op1",
+      "role": "MAKER",
+      "email": "test_op1@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_op2",
+      "role": "MAKER",
+      "email": "test_op2@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_view1",
+      "role": "VIEWER",
+      "email": "test_view1@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_disabled",
+      "role": "MAKER",
+      "email": "test_disabled@test.local",
+      "isActive": 0,
+      "isEmailVerified": 1,
+      "deletedAt": null
+    },
+    {
+      "username": "test_noemail",
+      "role": "CHECKER",
+      "email": null,
+      "isActive": 1,
+      "isEmailVerified": 0,
+      "deletedAt": null
+    },
+    {
+      "username": "test_unverified",
+      "role": "MAKER",
+      "email": "test_unverified@test.local",
+      "isActive": 1,
+      "isEmailVerified": 0,
+      "deletedAt": null
+    },
+    {
+      "username": "test_deleted",
+      "role": "VIEWER",
+      "email": "test_deleted@test.local",
+      "isActive": 1,
+      "isEmailVerified": 1,
+      "deletedAt": "2026-09-01 10:00:00.000"
+    }
+  ],
+  "tableCounts": {
+    "users": 11,
+    "loan_products": 8,
+    "customers": 26,
+    "kyc_documents": 88,
+    "kyc_document_contents": 88,
+    "loans": 21,
+    "financial_transactions": 73,
+    "financial_transaction_lines": 116,
+    "payment_requests": 38,
+    "payment_allocations": 54,
+    "settlement_agreements": 4,
+    "approval_workflows": 77,
+    "approval_steps": 146,
+    "customer_credits": 2,
+    "credit_ledger": 3,
+    "user_avatars": 2,
+    "user_avatar_contents": 2,
+    "audit_logs": 364
+  },
+  "keptTables": {
+    "system_config": 12,
+    "email_templates": 9
+  },
+  "loans": {
+    "LN-TST-000001": {
+      "status": "ACTIVE",
+      "outstanding": "13600000.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000002": {
+      "status": "CLOSED",
+      "outstanding": "0.00",
+      "product": "TST-FLAT-M6"
+    },
+    "LN-TST-000003": {
+      "status": "CLOSED",
+      "outstanding": "0.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000004": {
+      "status": "CLOSED",
+      "outstanding": "0.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000005": {
+      "status": "ACTIVE",
+      "outstanding": "18120000.00",
+      "product": "TST-FIXED-PEN"
+    },
+    "LN-TST-000006": {
+      "status": "CLOSED",
+      "outstanding": "0.00",
+      "product": "TST-DAY-RATE"
+    },
+    "LN-TST-000007": {
+      "status": "ACTIVE",
+      "outstanding": "2060000.00",
+      "product": "TST-WEEK-TERM"
+    },
+    "LN-TST-000008": {
+      "status": "ACTIVE",
+      "outstanding": "58000000.00",
+      "product": "TST-YEAR-TERM"
+    },
+    "LN-TST-000009": {
+      "status": "CLOSED",
+      "outstanding": "0.00",
+      "product": "TST-NOPEN-ZERO"
+    },
+    "LN-TST-000010": {
+      "status": "ACTIVE",
+      "outstanding": "180000000.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000011": {
+      "status": "ACTIVE",
+      "outstanding": "6648000.00",
+      "product": "TST-FLAT-M6"
+    },
+    "LN-TST-000012": {
+      "status": "ACTIVE",
+      "outstanding": "9960000.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000013": {
+      "status": "ACTIVE",
+      "outstanding": "53100000.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000014": {
+      "status": "ACTIVE",
+      "outstanding": "8342000.00",
+      "product": "TST-FIXED-PEN"
+    },
+    "LN-TST-000015": {
+      "status": "ACTIVE",
+      "outstanding": "8850000.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000016": {
+      "status": "ACTIVE",
+      "outstanding": "3980000.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000017": {
+      "status": "ACTIVE",
+      "outstanding": "312000.00",
+      "product": "TST-FLAT-M6"
+    },
+    "LN-TST-000018": {
+      "status": "WRITTEN_OFF",
+      "outstanding": "0.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000019": {
+      "status": "ACTIVE",
+      "outstanding": "9880000.00",
+      "product": "TST-FLAT-M12"
+    },
+    "LN-TST-000020": {
+      "status": "ACTIVE",
+      "outstanding": "2216000.00",
+      "product": "TST-FLAT-M6"
+    },
+    "LN-TST-000021": {
+      "status": "CLOSED",
+      "outstanding": "0.00",
+      "product": "TST-FLAT-M12"
+    }
+  },
+  "totals": {
+    "disbursed": "518623100.00",
+    "disbursedCash": "431000100.00",
+    "collected": "128695100.00",
+    "interestPaid": "72417000.00",
+    "penaltyPaid": "5690000.00",
+    "principalPaid": "69276100.00",
+    "reversed": "20148000.00",
+    "waived": "240000.00",
+    "writtenOff": "23936000.00",
+    "postedTransactions": 71,
+    "closingOutstanding": "375068000.00",
+    "loanBookOutstanding": "375068000.00",
+    "ledgerOutstanding": "375068000.00",
+    "ledgerMatchesLoanBook": true
+  },
+  "invariants": {
+    "monthsWithNoCollections": [
+      "2025-07",
+      "2025-12"
+    ],
+    "monthsWithNoDisbursements": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10"
+    ],
+    "largestOutstandingLoan": "LN-TST-000010",
+    "writtenOffLoans": [
+      "LN-TST-000018"
+    ],
+    "closedLoans": [
+      "LN-TST-000002",
+      "LN-TST-000003",
+      "LN-TST-000004",
+      "LN-TST-000006",
+      "LN-TST-000009",
+      "LN-TST-000021"
+    ],
+    "activeLoans": 14
+  }
+}

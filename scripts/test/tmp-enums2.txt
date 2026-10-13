@@ -1,0 +1,6 @@
+[{"c":40}]
+[{"kycStatus":"VERIFIED","c":20},{"kycStatus":"PENDING","c":10},{"kycStatus":"NOT_VERIFIED","c":10}]
+[{"c":2}]
+[{"c":0}]
+[{"c":0}]
+[{"kycStatus":"VERIFIED","c":21}]

@@ -1,0 +1,5182 @@
+{
+  "meta": {
+    "seed": 12345,
+    "referenceNow": "2026-10-13T09:30:00.000Z",
+    "from": "2025-07",
+    "to": "2026-10",
+    "currency": "LAK",
+    "generatedBy": "scripts/test/oracle.mjs"
+  },
+  "loans": {
+    "LN-TST-000001": {
+      "loanId": "00000000-7000-4000-8000-000000000001",
+      "customerId": "00000000-2000-4000-8000-000000000001",
+      "customerNumber": "CUST-TST-0001",
+      "product": "TST-FLAT-M12",
+      "status": "ACTIVE",
+      "principal": "20000000.00",
+      "billedInterest": "3600000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "13600000.00",
+        "total": "13600000.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-08-10",
+        "2025-09-10",
+        "2025-10-10",
+        "2025-11-10",
+        "2025-12-10",
+        "2026-01-10",
+        "2026-02-10",
+        "2026-03-10",
+        "2026-04-10",
+        "2026-05-10",
+        "2026-06-10",
+        "2026-07-10"
+      ],
+      "postedTransactionCount": 6,
+      "pendingTransactionCount": 1
+    },
+    "LN-TST-000002": {
+      "loanId": "00000000-7000-4000-8000-000000000002",
+      "customerId": "00000000-2000-4000-8000-000000000002",
+      "customerNumber": "CUST-TST-0002",
+      "product": "TST-FLAT-M6",
+      "status": "CLOSED",
+      "principal": "5000000.00",
+      "billedInterest": "540000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "0.00",
+        "total": "0.00"
+      },
+      "periodCount": 6,
+      "scheduleDueDates": [
+        "2025-09-15",
+        "2025-10-15",
+        "2025-11-15",
+        "2025-12-15",
+        "2026-01-15",
+        "2026-02-15"
+      ],
+      "postedTransactionCount": 2,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000003": {
+      "loanId": "00000000-7000-4000-8000-000000000003",
+      "customerId": "00000000-2000-4000-8000-000000000003",
+      "customerNumber": "CUST-TST-0003",
+      "product": "TST-FLAT-M12",
+      "status": "CLOSED",
+      "principal": "8000000.00",
+      "billedInterest": "1440000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "0.00",
+        "total": "0.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-10-01",
+        "2025-11-01",
+        "2025-12-01",
+        "2026-01-01",
+        "2026-02-01",
+        "2026-03-01",
+        "2026-04-01",
+        "2026-05-01",
+        "2026-06-01",
+        "2026-07-01",
+        "2026-08-01",
+        "2026-09-01"
+      ],
+      "postedTransactionCount": 2,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000004": {
+      "loanId": "00000000-7000-4000-8000-000000000004",
+      "customerId": "00000000-2000-4000-8000-000000000003",
+      "customerNumber": "CUST-TST-0003",
+      "product": "TST-FLAT-M12",
+      "status": "CLOSED",
+      "principal": "3000000.00",
+      "billedInterest": "540000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "0.00",
+        "total": "0.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-11-05",
+        "2025-12-05",
+        "2026-01-05",
+        "2026-02-05",
+        "2026-03-05",
+        "2026-04-05",
+        "2026-05-05",
+        "2026-06-05",
+        "2026-07-05",
+        "2026-08-05",
+        "2026-09-05",
+        "2026-10-05"
+      ],
+      "postedTransactionCount": 4,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000005": {
+      "loanId": "00000000-7000-4000-8000-000000000005",
+      "customerId": "00000000-2000-4000-8000-000000000004",
+      "customerNumber": "CUST-TST-0004",
+      "product": "TST-FIXED-PEN",
+      "status": "ACTIVE",
+      "principal": "15000000.00",
+      "billedInterest": "4320000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "3120000.00",
+        "PAST_PRINCIPAL": "15000000.00",
+        "total": "18120000.00"
+      },
+      "periodCount": 24,
+      "scheduleDueDates": [
+        "2025-12-20",
+        "2026-01-20",
+        "2026-02-20",
+        "2026-03-20",
+        "2026-04-20",
+        "2026-05-20",
+        "2026-06-20",
+        "2026-07-20",
+        "2026-08-20",
+        "2026-09-20",
+        "2026-10-20",
+        "2026-11-20",
+        "2026-12-20",
+        "2027-01-20",
+        "2027-02-20",
+        "2027-03-20",
+        "2027-04-20",
+        "2027-05-20",
+        "2027-06-20",
+        "2027-07-20",
+        "2027-08-20",
+        "2027-09-20",
+        "2027-10-20",
+        "2027-11-20"
+      ],
+      "postedTransactionCount": 4,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000006": {
+      "loanId": "00000000-7000-4000-8000-000000000006",
+      "customerId": "00000000-2000-4000-8000-000000000005",
+      "customerNumber": "CUST-TST-0005",
+      "product": "TST-DAY-RATE",
+      "status": "CLOSED",
+      "principal": "1000000.00",
+      "billedInterest": "45000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "0.00",
+        "total": "0.00"
+      },
+      "periodCount": 3,
+      "scheduleDueDates": [
+        "2026-02-05",
+        "2026-03-05",
+        "2026-04-05"
+      ],
+      "postedTransactionCount": 4,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000007": {
+      "loanId": "00000000-7000-4000-8000-000000000007",
+      "customerId": "00000000-2000-4000-8000-000000000006",
+      "customerNumber": "CUST-TST-0006",
+      "product": "TST-WEEK-TERM",
+      "status": "ACTIVE",
+      "principal": "2500000.00",
+      "billedInterest": "260000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "2060000.00",
+        "total": "2060000.00"
+      },
+      "periodCount": 6,
+      "scheduleDueDates": [
+        "2026-03-03",
+        "2026-04-03",
+        "2026-05-03",
+        "2026-06-03",
+        "2026-07-03",
+        "2026-08-03"
+      ],
+      "postedTransactionCount": 4,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000008": {
+      "loanId": "00000000-7000-4000-8000-000000000008",
+      "customerId": "00000000-2000-4000-8000-000000000007",
+      "customerNumber": "CUST-TST-0007",
+      "product": "TST-YEAR-TERM",
+      "status": "ACTIVE",
+      "principal": "50000000.00",
+      "billedInterest": "18000000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "8000000.00",
+        "PAST_PRINCIPAL": "50000000.00",
+        "total": "58000000.00"
+      },
+      "periodCount": 24,
+      "scheduleDueDates": [
+        "2026-01-31",
+        "2026-02-28",
+        "2026-03-31",
+        "2026-04-30",
+        "2026-05-31",
+        "2026-06-30",
+        "2026-07-31",
+        "2026-08-31",
+        "2026-09-30",
+        "2026-10-31",
+        "2026-11-30",
+        "2026-12-31",
+        "2027-01-31",
+        "2027-02-28",
+        "2027-03-31",
+        "2027-04-30",
+        "2027-05-31",
+        "2027-06-30",
+        "2027-07-31",
+        "2027-08-31",
+        "2027-09-30",
+        "2027-10-31",
+        "2027-11-30",
+        "2027-12-31"
+      ],
+      "postedTransactionCount": 2,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000009": {
+      "loanId": "00000000-7000-4000-8000-000000000009",
+      "customerId": "00000000-2000-4000-8000-000000000008",
+      "customerNumber": "CUST-TST-0008",
+      "product": "TST-NOPEN-ZERO",
+      "status": "CLOSED",
+      "principal": "100.00",
+      "billedInterest": "0.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "0.00",
+        "total": "0.00"
+      },
+      "periodCount": 3,
+      "scheduleDueDates": [
+        "2026-06-30",
+        "2026-07-31",
+        "2026-08-31"
+      ],
+      "postedTransactionCount": 4,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000010": {
+      "loanId": "00000000-7000-4000-8000-000000000010",
+      "customerId": "00000000-2000-4000-8000-000000000009",
+      "customerNumber": "CUST-TST-0009",
+      "product": "TST-FLAT-M12",
+      "status": "ACTIVE",
+      "principal": "200000000.00",
+      "billedInterest": "36000000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "180000000.00",
+        "total": "180000000.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-08-31",
+        "2025-09-30",
+        "2025-10-31",
+        "2025-11-30",
+        "2025-12-31",
+        "2026-01-31",
+        "2026-02-28",
+        "2026-03-31",
+        "2026-04-30",
+        "2026-05-31",
+        "2026-06-30",
+        "2026-07-31"
+      ],
+      "postedTransactionCount": 4,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000011": {
+      "loanId": "00000000-7000-4000-8000-000000000011",
+      "customerId": "00000000-2000-4000-8000-000000000010",
+      "customerNumber": "CUST-TST-0010",
+      "product": "TST-FLAT-M6",
+      "status": "ACTIVE",
+      "principal": "6000000.00",
+      "billedInterest": "648000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "648000.00",
+        "PAST_PRINCIPAL": "6000000.00",
+        "total": "6648000.00"
+      },
+      "periodCount": 6,
+      "scheduleDueDates": [
+        "2025-11-10",
+        "2025-12-10",
+        "2026-01-10",
+        "2026-02-10",
+        "2026-03-10",
+        "2026-04-10"
+      ],
+      "postedTransactionCount": 3,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000012": {
+      "loanId": "00000000-7000-4000-8000-000000000012",
+      "customerId": "00000000-2000-4000-8000-000000000011",
+      "customerNumber": "CUST-TST-0011",
+      "product": "TST-FLAT-M12",
+      "status": "ACTIVE",
+      "principal": "12000000.00",
+      "billedInterest": "2160000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "9960000.00",
+        "total": "9960000.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-12-11",
+        "2026-01-11",
+        "2026-02-11",
+        "2026-03-11",
+        "2026-04-11",
+        "2026-05-11",
+        "2026-06-11",
+        "2026-07-11",
+        "2026-08-11",
+        "2026-09-11",
+        "2026-10-11",
+        "2026-11-11"
+      ],
+      "postedTransactionCount": 6,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000013": {
+      "loanId": "00000000-7000-4000-8000-000000000013",
+      "customerId": "00000000-2000-4000-8000-000000000012",
+      "customerNumber": "CUST-TST-0012",
+      "product": "TST-FLAT-M12",
+      "status": "ACTIVE",
+      "principal": "45000000.00",
+      "billedInterest": "8100000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "8100000.00",
+        "PAST_PRINCIPAL": "45000000.00",
+        "total": "53100000.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2026-02-13",
+        "2026-03-13",
+        "2026-04-13",
+        "2026-05-13",
+        "2026-06-13",
+        "2026-07-13",
+        "2026-08-13",
+        "2026-09-13",
+        "2026-10-13",
+        "2026-11-13",
+        "2026-12-13",
+        "2027-01-13"
+      ],
+      "postedTransactionCount": 3,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000014": {
+      "loanId": "00000000-7000-4000-8000-000000000014",
+      "customerId": "00000000-2000-4000-8000-000000000013",
+      "customerNumber": "CUST-TST-0013",
+      "product": "TST-FIXED-PEN",
+      "status": "ACTIVE",
+      "principal": "9000000.00",
+      "billedInterest": "2592000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "8342000.00",
+        "total": "8342000.00"
+      },
+      "periodCount": 24,
+      "scheduleDueDates": [
+        "2026-01-05",
+        "2026-02-05",
+        "2026-03-05",
+        "2026-04-05",
+        "2026-05-05",
+        "2026-06-05",
+        "2026-07-05",
+        "2026-08-05",
+        "2026-09-05",
+        "2026-10-05",
+        "2026-11-05",
+        "2026-12-05",
+        "2027-01-05",
+        "2027-02-05",
+        "2027-03-05",
+        "2027-04-05",
+        "2027-05-05",
+        "2027-06-05",
+        "2027-07-05",
+        "2027-08-05",
+        "2027-09-05",
+        "2027-10-05",
+        "2027-11-05",
+        "2027-12-05"
+      ],
+      "postedTransactionCount": 3,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000015": {
+      "loanId": "00000000-7000-4000-8000-000000000015",
+      "customerId": "00000000-2000-4000-8000-000000000014",
+      "customerNumber": "CUST-TST-0014",
+      "product": "TST-FLAT-M12",
+      "status": "ACTIVE",
+      "principal": "7500000.00",
+      "billedInterest": "1350000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "1350000.00",
+        "PAST_PRINCIPAL": "7500000.00",
+        "total": "8850000.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-10-18",
+        "2025-11-18",
+        "2025-12-18",
+        "2026-01-18",
+        "2026-02-18",
+        "2026-03-18",
+        "2026-04-18",
+        "2026-05-18",
+        "2026-06-18",
+        "2026-07-18",
+        "2026-08-18",
+        "2026-09-18"
+      ],
+      "postedTransactionCount": 1,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000016": {
+      "loanId": "00000000-7000-4000-8000-000000000016",
+      "customerId": "00000000-2000-4000-8000-000000000015",
+      "customerNumber": "CUST-TST-0015",
+      "product": "TST-FLAT-M12",
+      "status": "ACTIVE",
+      "principal": "11000000.00",
+      "billedInterest": "1980000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "3980000.00",
+        "total": "3980000.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-09-20",
+        "2025-10-20",
+        "2025-11-20",
+        "2025-12-20",
+        "2026-01-20",
+        "2026-02-20",
+        "2026-03-20",
+        "2026-04-20",
+        "2026-05-20",
+        "2026-06-20",
+        "2026-07-20",
+        "2026-08-20"
+      ],
+      "postedTransactionCount": 2,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000017": {
+      "loanId": "00000000-7000-4000-8000-000000000017",
+      "customerId": "00000000-2000-4000-8000-000000000016",
+      "customerNumber": "CUST-TST-0016",
+      "product": "TST-FLAT-M6",
+      "status": "ACTIVE",
+      "principal": "4000000.00",
+      "billedInterest": "432000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "312000.00",
+        "total": "312000.00"
+      },
+      "periodCount": 6,
+      "scheduleDueDates": [
+        "2026-02-28",
+        "2026-03-31",
+        "2026-04-30",
+        "2026-05-31",
+        "2026-06-30",
+        "2026-07-31"
+      ],
+      "postedTransactionCount": 4,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000018": {
+      "loanId": "00000000-7000-4000-8000-000000000018",
+      "customerId": "00000000-2000-4000-8000-000000000017",
+      "customerNumber": "CUST-TST-0017",
+      "product": "TST-FLAT-M12",
+      "status": "WRITTEN_OFF",
+      "principal": "13000000.00",
+      "billedInterest": "2340000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "0.00",
+        "total": "0.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-11-25",
+        "2025-12-25",
+        "2026-01-25",
+        "2026-02-25",
+        "2026-03-25",
+        "2026-04-25",
+        "2026-05-25",
+        "2026-06-25",
+        "2026-07-25",
+        "2026-08-25",
+        "2026-09-25",
+        "2026-10-25"
+      ],
+      "postedTransactionCount": 2,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000019": {
+      "loanId": "00000000-7000-4000-8000-000000000019",
+      "customerId": "00000000-2000-4000-8000-000000000018",
+      "customerNumber": "CUST-TST-0018",
+      "product": "TST-FLAT-M12",
+      "status": "ACTIVE",
+      "principal": "16000000.00",
+      "billedInterest": "2880000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "9880000.00",
+        "total": "9880000.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2025-12-28",
+        "2026-01-28",
+        "2026-02-28",
+        "2026-03-28",
+        "2026-04-28",
+        "2026-05-28",
+        "2026-06-28",
+        "2026-07-28",
+        "2026-08-28",
+        "2026-09-28",
+        "2026-10-28",
+        "2026-11-28"
+      ],
+      "postedTransactionCount": 3,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000020": {
+      "loanId": "00000000-7000-4000-8000-000000000020",
+      "customerId": "00000000-2000-4000-8000-000000000019",
+      "customerNumber": "CUST-TST-0019",
+      "product": "TST-FLAT-M6",
+      "status": "ACTIVE",
+      "principal": "2000000.00",
+      "billedInterest": "216000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "216000.00",
+        "PAST_PRINCIPAL": "2000000.00",
+        "total": "2216000.00"
+      },
+      "periodCount": 6,
+      "scheduleDueDates": [
+        "2026-04-15",
+        "2026-05-15",
+        "2026-06-15",
+        "2026-07-15",
+        "2026-08-15",
+        "2026-09-15"
+      ],
+      "postedTransactionCount": 3,
+      "pendingTransactionCount": 0
+    },
+    "LN-TST-000021": {
+      "loanId": "00000000-7000-4000-8000-000000000021",
+      "customerId": "00000000-2000-4000-8000-000000000020",
+      "customerNumber": "CUST-TST-0020",
+      "product": "TST-FLAT-M12",
+      "status": "CLOSED",
+      "principal": "1000000.00",
+      "billedInterest": "180000.00",
+      "outstanding": {
+        "PENALTY": "0.00",
+        "PAST_INTEREST": "0.00",
+        "PAST_PRINCIPAL": "0.00",
+        "total": "0.00"
+      },
+      "periodCount": 12,
+      "scheduleDueDates": [
+        "2026-05-30",
+        "2026-06-30",
+        "2026-07-30",
+        "2026-08-30",
+        "2026-09-30",
+        "2026-10-30",
+        "2026-11-30",
+        "2026-12-30",
+        "2027-01-30",
+        "2027-02-28",
+        "2027-03-30",
+        "2027-04-30"
+      ],
+      "postedTransactionCount": 5,
+      "pendingTransactionCount": 0
+    }
+  },
+  "monthly": {
+    "2025-07": {
+      "disbursedCash": "220000000.00",
+      "booked": "259600000.00",
+      "moneyIn": "0.00",
+      "collected": "0.00",
+      "interestPaid": "0.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "0.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 2
+    },
+    "2025-08": {
+      "disbursedCash": "16000000.00",
+      "booked": "18520000.00",
+      "moneyIn": "2000000.00",
+      "collected": "2000000.00",
+      "interestPaid": "2000000.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "0.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 3
+    },
+    "2025-09": {
+      "disbursedCash": "15500000.00",
+      "booked": "18290000.00",
+      "moneyIn": "7540000.00",
+      "collected": "7540000.00",
+      "interestPaid": "2140000.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "5400000.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 4
+    },
+    "2025-10": {
+      "disbursedCash": "22000000.00",
+      "booked": "25528000.00",
+      "moneyIn": "2000000.00",
+      "collected": "2000000.00",
+      "interestPaid": "0.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "2000000.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 4
+    },
+    "2025-11": {
+      "disbursedCash": "43000000.00",
+      "booked": "52360000.00",
+      "moneyIn": "2000000.00",
+      "collected": "2000000.00",
+      "interestPaid": "0.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "2000000.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 4
+    },
+    "2025-12": {
+      "disbursedCash": "59000000.00",
+      "booked": "79592000.00",
+      "moneyIn": "0.00",
+      "collected": "0.00",
+      "interestPaid": "0.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "0.00",
+      "penaltyCharged": "4000000.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 3
+    },
+    "2026-01": {
+      "disbursedCash": "50000000.00",
+      "booked": "58577000.00",
+      "moneyIn": "68648000.00",
+      "collected": "68648000.00",
+      "interestPaid": "38088000.00",
+      "penaltyPaid": "4000000.00",
+      "principalPaid": "26000000.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 7
+    },
+    "2026-02": {
+      "disbursedCash": "2500000.00",
+      "booked": "2760000.00",
+      "moneyIn": "16750000.00",
+      "collected": "10102000.00",
+      "interestPaid": "7405000.00",
+      "penaltyPaid": "300000.00",
+      "principalPaid": "9045000.00",
+      "penaltyCharged": "1300000.00",
+      "reversed": "6648000.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 11
+    },
+    "2026-03": {
+      "disbursedCash": "2000000.00",
+      "booked": "2216000.00",
+      "moneyIn": "6950000.00",
+      "collected": "6950000.00",
+      "interestPaid": "3252000.00",
+      "penaltyPaid": "1000000.00",
+      "principalPaid": "2698000.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 6
+    },
+    "2026-04": {
+      "disbursedCash": "1000000.00",
+      "booked": "1180000.00",
+      "moneyIn": "12645000.00",
+      "collected": "12645000.00",
+      "interestPaid": "0.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "12645000.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 5
+    },
+    "2026-05": {
+      "disbursedCash": "100.00",
+      "booked": "100.00",
+      "moneyIn": "12000000.00",
+      "collected": "12000000.00",
+      "interestPaid": "8100000.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "3900000.00",
+      "penaltyCharged": "240000.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 3
+    },
+    "2026-06": {
+      "disbursedCash": "0.00",
+      "booked": "0.00",
+      "moneyIn": "12140033.34",
+      "collected": "10640033.34",
+      "interestPaid": "10000000.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "2140033.34",
+      "penaltyCharged": "0.00",
+      "reversed": "1500000.00",
+      "waived": "0.00",
+      "writtenOff": "17556000.00",
+      "transactions": 6
+    },
+    "2026-07": {
+      "disbursedCash": "0.00",
+      "booked": "0.00",
+      "moneyIn": "33.33",
+      "collected": "-11999966.67",
+      "interestPaid": "0.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "33.33",
+      "penaltyCharged": "0.00",
+      "reversed": "12000000.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 3
+    },
+    "2026-08": {
+      "disbursedCash": "0.00",
+      "booked": "0.00",
+      "moneyIn": "1000033.33",
+      "collected": "1000033.33",
+      "interestPaid": "1000000.00",
+      "penaltyPaid": "0.00",
+      "principalPaid": "33.33",
+      "penaltyCharged": "200000.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "5000000.00",
+      "transactions": 4
+    },
+    "2026-09": {
+      "disbursedCash": "0.00",
+      "booked": "0.00",
+      "moneyIn": "4120000.00",
+      "collected": "4120000.00",
+      "interestPaid": "432000.00",
+      "penaltyPaid": "240000.00",
+      "principalPaid": "3448000.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "240000.00",
+      "writtenOff": "1380000.00",
+      "transactions": 4
+    },
+    "2026-10": {
+      "disbursedCash": "0.00",
+      "booked": "0.00",
+      "moneyIn": "1050000.00",
+      "collected": "1050000.00",
+      "interestPaid": "0.00",
+      "penaltyPaid": "150000.00",
+      "principalPaid": "0.00",
+      "penaltyCharged": "0.00",
+      "reversed": "0.00",
+      "waived": "0.00",
+      "writtenOff": "0.00",
+      "transactions": 2
+    }
+  },
+  "apiRows": {
+    "2024-01": {
+      "month": "2024-01",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-02": {
+      "month": "2024-02",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-03": {
+      "month": "2024-03",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-04": {
+      "month": "2024-04",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-05": {
+      "month": "2024-05",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-06": {
+      "month": "2024-06",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-07": {
+      "month": "2024-07",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-08": {
+      "month": "2024-08",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-09": {
+      "month": "2024-09",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-10": {
+      "month": "2024-10",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-11": {
+      "month": "2024-11",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2024-12": {
+      "month": "2024-12",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-01": {
+      "month": "2025-01",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-02": {
+      "month": "2025-02",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-03": {
+      "month": "2025-03",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-04": {
+      "month": "2025-04",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-05": {
+      "month": "2025-05",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-06": {
+      "month": "2025-06",
+      "disbursed": 0,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 0,
+      "closingOutstanding": 0,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-07": {
+      "month": "2025-07",
+      "disbursed": 259600000,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 39600000,
+      "penaltyAdded": 0,
+      "outstandingDelta": 259600000,
+      "loansOpened": 2,
+      "transactions": 2,
+      "closingOutstanding": 259600000,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 259600000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 259600000,
+          "percent": null
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 259600000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 259600000,
+          "percent": null
+        }
+      }
+    },
+    "2025-08": {
+      "month": "2025-08",
+      "disbursed": 18520000,
+      "moneyIn": 2000000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 2000000,
+      "penaltyPaid": 0,
+      "interestAccrued": 2520000,
+      "penaltyAdded": 0,
+      "outstandingDelta": 16520000,
+      "loansOpened": 2,
+      "transactions": 3,
+      "closingOutstanding": 276120000,
+      "collected": 2000000,
+      "mom": {
+        "collected": {
+          "absolute": 2000000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": -241080000,
+          "percent": -92.87
+        },
+        "outstanding": {
+          "absolute": 16520000,
+          "percent": 6.36
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 2000000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 18520000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 276120000,
+          "percent": null
+        }
+      }
+    },
+    "2025-09": {
+      "month": "2025-09",
+      "disbursed": 18290000,
+      "moneyIn": 7540000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 5400000,
+      "interestPaid": 2140000,
+      "penaltyPaid": 0,
+      "interestAccrued": 2790000,
+      "penaltyAdded": 0,
+      "outstandingDelta": 10750000,
+      "loansOpened": 2,
+      "transactions": 4,
+      "closingOutstanding": 286870000,
+      "collected": 7540000,
+      "mom": {
+        "collected": {
+          "absolute": 5540000,
+          "percent": 277
+        },
+        "disbursed": {
+          "absolute": -230000,
+          "percent": -1.24
+        },
+        "outstanding": {
+          "absolute": 10750000,
+          "percent": 3.89
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 7540000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 18290000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 286870000,
+          "percent": null
+        }
+      }
+    },
+    "2025-10": {
+      "month": "2025-10",
+      "disbursed": 25528000,
+      "moneyIn": 2000000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 2000000,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 3528000,
+      "penaltyAdded": 0,
+      "outstandingDelta": 23528000,
+      "loansOpened": 3,
+      "transactions": 4,
+      "closingOutstanding": 310398000,
+      "collected": 2000000,
+      "mom": {
+        "collected": {
+          "absolute": -5540000,
+          "percent": -73.47
+        },
+        "disbursed": {
+          "absolute": 7238000,
+          "percent": 39.57
+        },
+        "outstanding": {
+          "absolute": 23528000,
+          "percent": 8.2
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 2000000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 25528000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 310398000,
+          "percent": null
+        }
+      }
+    },
+    "2025-11": {
+      "month": "2025-11",
+      "disbursed": 52360000,
+      "moneyIn": 2000000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 2000000,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 9360000,
+      "penaltyAdded": 0,
+      "outstandingDelta": 50360000,
+      "loansOpened": 3,
+      "transactions": 4,
+      "closingOutstanding": 360758000,
+      "collected": 2000000,
+      "mom": {
+        "collected": {
+          "absolute": 0,
+          "percent": 0
+        },
+        "disbursed": {
+          "absolute": 26832000,
+          "percent": 105.11
+        },
+        "outstanding": {
+          "absolute": 50360000,
+          "percent": 16.22
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 2000000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 52360000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 360758000,
+          "percent": null
+        }
+      }
+    },
+    "2025-12": {
+      "month": "2025-12",
+      "disbursed": 79592000,
+      "moneyIn": 0,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 4000000,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 20592000,
+      "penaltyAdded": 4000000,
+      "outstandingDelta": 83592000,
+      "loansOpened": 2,
+      "transactions": 3,
+      "closingOutstanding": 444350000,
+      "collected": 0,
+      "mom": {
+        "collected": {
+          "absolute": -2000000,
+          "percent": -100
+        },
+        "disbursed": {
+          "absolute": 27232000,
+          "percent": 52.01
+        },
+        "outstanding": {
+          "absolute": 83592000,
+          "percent": 23.17
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 0,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 79592000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 444350000,
+          "percent": null
+        }
+      }
+    },
+    "2026-01": {
+      "month": "2026-01",
+      "disbursed": 58577000,
+      "moneyIn": 68648000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 26000000,
+      "interestPaid": 38088000,
+      "penaltyPaid": 4000000,
+      "interestAccrued": 8577000,
+      "penaltyAdded": 0,
+      "outstandingDelta": -9511000,
+      "loansOpened": 3,
+      "transactions": 7,
+      "closingOutstanding": 434839000,
+      "collected": 68648000,
+      "mom": {
+        "collected": {
+          "absolute": 68648000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": -21015000,
+          "percent": -26.4
+        },
+        "outstanding": {
+          "absolute": -9511000,
+          "percent": -2.14
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 68648000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 58577000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 434839000,
+          "percent": null
+        }
+      }
+    },
+    "2026-02": {
+      "month": "2026-02",
+      "disbursed": 2760000,
+      "moneyIn": 16750000,
+      "reversed": 6648000,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 1300000,
+      "principalPaid": 9045000,
+      "interestPaid": 7405000,
+      "penaltyPaid": 300000,
+      "interestAccrued": 908000,
+      "penaltyAdded": 1300000,
+      "outstandingDelta": -6042000,
+      "loansOpened": 1,
+      "transactions": 11,
+      "closingOutstanding": 428797000,
+      "collected": 10102000,
+      "mom": {
+        "collected": {
+          "absolute": -58546000,
+          "percent": -85.28
+        },
+        "disbursed": {
+          "absolute": -55817000,
+          "percent": -95.29
+        },
+        "outstanding": {
+          "absolute": -6042000,
+          "percent": -1.39
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 10102000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 2760000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 428797000,
+          "percent": null
+        }
+      }
+    },
+    "2026-03": {
+      "month": "2026-03",
+      "disbursed": 2216000,
+      "moneyIn": 6950000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 2698000,
+      "interestPaid": 3252000,
+      "penaltyPaid": 1000000,
+      "interestAccrued": 216000,
+      "penaltyAdded": 0,
+      "outstandingDelta": -4734000,
+      "loansOpened": 1,
+      "transactions": 6,
+      "closingOutstanding": 424063000,
+      "collected": 6950000,
+      "mom": {
+        "collected": {
+          "absolute": -3152000,
+          "percent": -31.2
+        },
+        "disbursed": {
+          "absolute": -544000,
+          "percent": -19.71
+        },
+        "outstanding": {
+          "absolute": -4734000,
+          "percent": -1.1
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 6950000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 2216000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 424063000,
+          "percent": null
+        }
+      }
+    },
+    "2026-04": {
+      "month": "2026-04",
+      "disbursed": 1180000,
+      "moneyIn": 12645000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 12645000,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 180000,
+      "penaltyAdded": 0,
+      "outstandingDelta": -11465000,
+      "loansOpened": 1,
+      "transactions": 5,
+      "closingOutstanding": 412598000,
+      "collected": 12645000,
+      "mom": {
+        "collected": {
+          "absolute": 5695000,
+          "percent": 81.94
+        },
+        "disbursed": {
+          "absolute": -1036000,
+          "percent": -46.75
+        },
+        "outstanding": {
+          "absolute": -11465000,
+          "percent": -2.7
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 12645000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 1180000,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 412598000,
+          "percent": null
+        }
+      }
+    },
+    "2026-05": {
+      "month": "2026-05",
+      "disbursed": 100,
+      "moneyIn": 12000000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 240000,
+      "principalPaid": 3900000,
+      "interestPaid": 8100000,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 240000,
+      "outstandingDelta": -11759900,
+      "loansOpened": 1,
+      "transactions": 3,
+      "closingOutstanding": 400838100,
+      "collected": 12000000,
+      "mom": {
+        "collected": {
+          "absolute": -645000,
+          "percent": -5.1
+        },
+        "disbursed": {
+          "absolute": -1179900,
+          "percent": -99.99
+        },
+        "outstanding": {
+          "absolute": -11759900,
+          "percent": -2.85
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 12000000,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 100,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 400838100,
+          "percent": null
+        }
+      }
+    },
+    "2026-06": {
+      "month": "2026-06",
+      "disbursed": 0,
+      "moneyIn": 12140033.34,
+      "reversed": 1500000,
+      "writtenOff": 17556000,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 17140033.34,
+      "interestPaid": 12556000,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 0,
+      "outstandingDelta": -28196033.34,
+      "loansOpened": 0,
+      "transactions": 6,
+      "closingOutstanding": 372642066.66,
+      "collected": 10640033.34,
+      "mom": {
+        "collected": {
+          "absolute": -1359966.66,
+          "percent": -11.33
+        },
+        "disbursed": {
+          "absolute": -100,
+          "percent": -100
+        },
+        "outstanding": {
+          "absolute": -28196033.34,
+          "percent": -7.03
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": 10640033.34,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 372642066.66,
+          "percent": null
+        }
+      }
+    },
+    "2026-07": {
+      "month": "2026-07",
+      "disbursed": 0,
+      "moneyIn": 33.33,
+      "reversed": 12000000,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 250033.33,
+      "interestPaid": 0,
+      "penaltyPaid": 0,
+      "interestAccrued": 8100000,
+      "penaltyAdded": 0,
+      "outstandingDelta": 11749966.67,
+      "loansOpened": 0,
+      "transactions": 3,
+      "closingOutstanding": 384392033.33,
+      "collected": -11999966.67,
+      "mom": {
+        "collected": {
+          "absolute": -22640000.01,
+          "percent": -212.78
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 11749966.67,
+          "percent": 3.15
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": -11999966.67,
+          "percent": null
+        },
+        "disbursed": {
+          "absolute": -259600000,
+          "percent": -100
+        },
+        "outstanding": {
+          "absolute": 124792033.33,
+          "percent": 48.07
+        }
+      }
+    },
+    "2026-08": {
+      "month": "2026-08",
+      "disbursed": 0,
+      "moneyIn": 1000033.33,
+      "reversed": 0,
+      "writtenOff": 5000000,
+      "waived": 0,
+      "penaltyCharged": 200000,
+      "principalPaid": 5000033.33,
+      "interestPaid": 1000000,
+      "penaltyPaid": 0,
+      "interestAccrued": 0,
+      "penaltyAdded": 200000,
+      "outstandingDelta": -5800033.33,
+      "loansOpened": 0,
+      "transactions": 4,
+      "closingOutstanding": 378592000,
+      "collected": 1000033.33,
+      "mom": {
+        "collected": {
+          "absolute": 13000000,
+          "percent": 108.33
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": -5800033.33,
+          "percent": -1.51
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": -999966.67,
+          "percent": -50
+        },
+        "disbursed": {
+          "absolute": -18520000,
+          "percent": -100
+        },
+        "outstanding": {
+          "absolute": 102472000,
+          "percent": 37.11
+        }
+      }
+    },
+    "2026-09": {
+      "month": "2026-09",
+      "disbursed": 0,
+      "moneyIn": 4120000,
+      "reversed": 0,
+      "writtenOff": 1380000,
+      "waived": 240000,
+      "penaltyCharged": 0,
+      "principalPaid": 4688000,
+      "interestPaid": 612000,
+      "penaltyPaid": 440000,
+      "interestAccrued": 216000,
+      "penaltyAdded": 0,
+      "outstandingDelta": -3524000,
+      "loansOpened": 0,
+      "transactions": 4,
+      "closingOutstanding": 375068000,
+      "collected": 4120000,
+      "mom": {
+        "collected": {
+          "absolute": 3119966.67,
+          "percent": 311.99
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": -3524000,
+          "percent": -0.93
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": -3420000,
+          "percent": -45.36
+        },
+        "disbursed": {
+          "absolute": -18290000,
+          "percent": -100
+        },
+        "outstanding": {
+          "absolute": 88198000,
+          "percent": 30.74
+        }
+      }
+    },
+    "2026-10": {
+      "month": "2026-10",
+      "disbursed": 0,
+      "moneyIn": 1050000,
+      "reversed": 0,
+      "writtenOff": 0,
+      "waived": 0,
+      "penaltyCharged": 0,
+      "principalPaid": 0,
+      "interestPaid": 0,
+      "penaltyPaid": 150000,
+      "interestAccrued": 0,
+      "penaltyAdded": 150000,
+      "outstandingDelta": 0,
+      "loansOpened": 0,
+      "transactions": 2,
+      "closingOutstanding": 375068000,
+      "collected": 1050000,
+      "mom": {
+        "collected": {
+          "absolute": -3070000,
+          "percent": -74.51
+        },
+        "disbursed": {
+          "absolute": 0,
+          "percent": null
+        },
+        "outstanding": {
+          "absolute": 0,
+          "percent": 0
+        }
+      },
+      "yoy": {
+        "collected": {
+          "absolute": -950000,
+          "percent": -47.5
+        },
+        "disbursed": {
+          "absolute": -25528000,
+          "percent": -100
+        },
+        "outstanding": {
+          "absolute": 64670000,
+          "percent": 20.83
+        }
+      }
+    }
+  },
+  "report": {
+    "months12": {
+      "from": "2025-11",
+      "to": "2026-10",
+      "months": 12,
+      "openingOutstanding": 310398000,
+      "closingOutstanding": 375068000,
+      "loanBookOutstanding": 375068000,
+      "rows": [
+        {
+          "month": "2025-11",
+          "disbursed": 52360000,
+          "moneyIn": 2000000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 2000000,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 9360000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 50360000,
+          "loansOpened": 3,
+          "transactions": 4,
+          "closingOutstanding": 360758000,
+          "collected": 2000000,
+          "mom": {
+            "collected": {
+              "absolute": 0,
+              "percent": 0
+            },
+            "disbursed": {
+              "absolute": 26832000,
+              "percent": 105.11
+            },
+            "outstanding": {
+              "absolute": 50360000,
+              "percent": 16.22
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 2000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 52360000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 360758000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2025-12",
+          "disbursed": 79592000,
+          "moneyIn": 0,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 4000000,
+          "principalPaid": 0,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 20592000,
+          "penaltyAdded": 4000000,
+          "outstandingDelta": 83592000,
+          "loansOpened": 2,
+          "transactions": 3,
+          "closingOutstanding": 444350000,
+          "collected": 0,
+          "mom": {
+            "collected": {
+              "absolute": -2000000,
+              "percent": -100
+            },
+            "disbursed": {
+              "absolute": 27232000,
+              "percent": 52.01
+            },
+            "outstanding": {
+              "absolute": 83592000,
+              "percent": 23.17
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 0,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 79592000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 444350000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-01",
+          "disbursed": 58577000,
+          "moneyIn": 68648000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 26000000,
+          "interestPaid": 38088000,
+          "penaltyPaid": 4000000,
+          "interestAccrued": 8577000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -9511000,
+          "loansOpened": 3,
+          "transactions": 7,
+          "closingOutstanding": 434839000,
+          "collected": 68648000,
+          "mom": {
+            "collected": {
+              "absolute": 68648000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": -21015000,
+              "percent": -26.4
+            },
+            "outstanding": {
+              "absolute": -9511000,
+              "percent": -2.14
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 68648000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 58577000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 434839000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-02",
+          "disbursed": 2760000,
+          "moneyIn": 16750000,
+          "reversed": 6648000,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 1300000,
+          "principalPaid": 9045000,
+          "interestPaid": 7405000,
+          "penaltyPaid": 300000,
+          "interestAccrued": 908000,
+          "penaltyAdded": 1300000,
+          "outstandingDelta": -6042000,
+          "loansOpened": 1,
+          "transactions": 11,
+          "closingOutstanding": 428797000,
+          "collected": 10102000,
+          "mom": {
+            "collected": {
+              "absolute": -58546000,
+              "percent": -85.28
+            },
+            "disbursed": {
+              "absolute": -55817000,
+              "percent": -95.29
+            },
+            "outstanding": {
+              "absolute": -6042000,
+              "percent": -1.39
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 10102000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 2760000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 428797000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-03",
+          "disbursed": 2216000,
+          "moneyIn": 6950000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 2698000,
+          "interestPaid": 3252000,
+          "penaltyPaid": 1000000,
+          "interestAccrued": 216000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -4734000,
+          "loansOpened": 1,
+          "transactions": 6,
+          "closingOutstanding": 424063000,
+          "collected": 6950000,
+          "mom": {
+            "collected": {
+              "absolute": -3152000,
+              "percent": -31.2
+            },
+            "disbursed": {
+              "absolute": -544000,
+              "percent": -19.71
+            },
+            "outstanding": {
+              "absolute": -4734000,
+              "percent": -1.1
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 6950000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 2216000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 424063000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-04",
+          "disbursed": 1180000,
+          "moneyIn": 12645000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 12645000,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 180000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -11465000,
+          "loansOpened": 1,
+          "transactions": 5,
+          "closingOutstanding": 412598000,
+          "collected": 12645000,
+          "mom": {
+            "collected": {
+              "absolute": 5695000,
+              "percent": 81.94
+            },
+            "disbursed": {
+              "absolute": -1036000,
+              "percent": -46.75
+            },
+            "outstanding": {
+              "absolute": -11465000,
+              "percent": -2.7
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 12645000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 1180000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 412598000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-05",
+          "disbursed": 100,
+          "moneyIn": 12000000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 240000,
+          "principalPaid": 3900000,
+          "interestPaid": 8100000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 240000,
+          "outstandingDelta": -11759900,
+          "loansOpened": 1,
+          "transactions": 3,
+          "closingOutstanding": 400838100,
+          "collected": 12000000,
+          "mom": {
+            "collected": {
+              "absolute": -645000,
+              "percent": -5.1
+            },
+            "disbursed": {
+              "absolute": -1179900,
+              "percent": -99.99
+            },
+            "outstanding": {
+              "absolute": -11759900,
+              "percent": -2.85
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 12000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 100,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 400838100,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-06",
+          "disbursed": 0,
+          "moneyIn": 12140033.34,
+          "reversed": 1500000,
+          "writtenOff": 17556000,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 17140033.34,
+          "interestPaid": 12556000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 0,
+          "outstandingDelta": -28196033.34,
+          "loansOpened": 0,
+          "transactions": 6,
+          "closingOutstanding": 372642066.66,
+          "collected": 10640033.34,
+          "mom": {
+            "collected": {
+              "absolute": -1359966.66,
+              "percent": -11.33
+            },
+            "disbursed": {
+              "absolute": -100,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": -28196033.34,
+              "percent": -7.03
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 10640033.34,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 372642066.66,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-07",
+          "disbursed": 0,
+          "moneyIn": 33.33,
+          "reversed": 12000000,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 250033.33,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 8100000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 11749966.67,
+          "loansOpened": 0,
+          "transactions": 3,
+          "closingOutstanding": 384392033.33,
+          "collected": -11999966.67,
+          "mom": {
+            "collected": {
+              "absolute": -22640000.01,
+              "percent": -212.78
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 11749966.67,
+              "percent": 3.15
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -11999966.67,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": -259600000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 124792033.33,
+              "percent": 48.07
+            }
+          }
+        },
+        {
+          "month": "2026-08",
+          "disbursed": 0,
+          "moneyIn": 1000033.33,
+          "reversed": 0,
+          "writtenOff": 5000000,
+          "waived": 0,
+          "penaltyCharged": 200000,
+          "principalPaid": 5000033.33,
+          "interestPaid": 1000000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 200000,
+          "outstandingDelta": -5800033.33,
+          "loansOpened": 0,
+          "transactions": 4,
+          "closingOutstanding": 378592000,
+          "collected": 1000033.33,
+          "mom": {
+            "collected": {
+              "absolute": 13000000,
+              "percent": 108.33
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": -5800033.33,
+              "percent": -1.51
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -999966.67,
+              "percent": -50
+            },
+            "disbursed": {
+              "absolute": -18520000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 102472000,
+              "percent": 37.11
+            }
+          }
+        },
+        {
+          "month": "2026-09",
+          "disbursed": 0,
+          "moneyIn": 4120000,
+          "reversed": 0,
+          "writtenOff": 1380000,
+          "waived": 240000,
+          "penaltyCharged": 0,
+          "principalPaid": 4688000,
+          "interestPaid": 612000,
+          "penaltyPaid": 440000,
+          "interestAccrued": 216000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -3524000,
+          "loansOpened": 0,
+          "transactions": 4,
+          "closingOutstanding": 375068000,
+          "collected": 4120000,
+          "mom": {
+            "collected": {
+              "absolute": 3119966.67,
+              "percent": 311.99
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": -3524000,
+              "percent": -0.93
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -3420000,
+              "percent": -45.36
+            },
+            "disbursed": {
+              "absolute": -18290000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 88198000,
+              "percent": 30.74
+            }
+          }
+        },
+        {
+          "month": "2026-10",
+          "disbursed": 0,
+          "moneyIn": 1050000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 0,
+          "interestPaid": 0,
+          "penaltyPaid": 150000,
+          "interestAccrued": 0,
+          "penaltyAdded": 150000,
+          "outstandingDelta": 0,
+          "loansOpened": 0,
+          "transactions": 2,
+          "closingOutstanding": 375068000,
+          "collected": 1050000,
+          "mom": {
+            "collected": {
+              "absolute": -3070000,
+              "percent": -74.51
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 0,
+              "percent": 0
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -950000,
+              "percent": -47.5
+            },
+            "disbursed": {
+              "absolute": -25528000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 64670000,
+              "percent": 20.83
+            }
+          }
+        }
+      ],
+      "totals": {
+        "disbursed": 196685100,
+        "moneyIn": 137303100,
+        "reversed": 20148000,
+        "collected": 117155100,
+        "interestPaid": 71013000,
+        "penaltyPaid": 5890000,
+        "writtenOff": 23936000,
+        "loansOpened": 12
+      }
+    },
+    "months6": {
+      "from": "2026-05",
+      "to": "2026-10",
+      "months": 6,
+      "openingOutstanding": 412598000,
+      "closingOutstanding": 375068000,
+      "loanBookOutstanding": 375068000,
+      "rows": [
+        {
+          "month": "2026-05",
+          "disbursed": 100,
+          "moneyIn": 12000000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 240000,
+          "principalPaid": 3900000,
+          "interestPaid": 8100000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 240000,
+          "outstandingDelta": -11759900,
+          "loansOpened": 1,
+          "transactions": 3,
+          "closingOutstanding": 400838100,
+          "collected": 12000000,
+          "mom": {
+            "collected": {
+              "absolute": -645000,
+              "percent": -5.1
+            },
+            "disbursed": {
+              "absolute": -1179900,
+              "percent": -99.99
+            },
+            "outstanding": {
+              "absolute": -11759900,
+              "percent": -2.85
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 12000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 100,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 400838100,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-06",
+          "disbursed": 0,
+          "moneyIn": 12140033.34,
+          "reversed": 1500000,
+          "writtenOff": 17556000,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 17140033.34,
+          "interestPaid": 12556000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 0,
+          "outstandingDelta": -28196033.34,
+          "loansOpened": 0,
+          "transactions": 6,
+          "closingOutstanding": 372642066.66,
+          "collected": 10640033.34,
+          "mom": {
+            "collected": {
+              "absolute": -1359966.66,
+              "percent": -11.33
+            },
+            "disbursed": {
+              "absolute": -100,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": -28196033.34,
+              "percent": -7.03
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 10640033.34,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 372642066.66,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-07",
+          "disbursed": 0,
+          "moneyIn": 33.33,
+          "reversed": 12000000,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 250033.33,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 8100000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 11749966.67,
+          "loansOpened": 0,
+          "transactions": 3,
+          "closingOutstanding": 384392033.33,
+          "collected": -11999966.67,
+          "mom": {
+            "collected": {
+              "absolute": -22640000.01,
+              "percent": -212.78
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 11749966.67,
+              "percent": 3.15
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -11999966.67,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": -259600000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 124792033.33,
+              "percent": 48.07
+            }
+          }
+        },
+        {
+          "month": "2026-08",
+          "disbursed": 0,
+          "moneyIn": 1000033.33,
+          "reversed": 0,
+          "writtenOff": 5000000,
+          "waived": 0,
+          "penaltyCharged": 200000,
+          "principalPaid": 5000033.33,
+          "interestPaid": 1000000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 200000,
+          "outstandingDelta": -5800033.33,
+          "loansOpened": 0,
+          "transactions": 4,
+          "closingOutstanding": 378592000,
+          "collected": 1000033.33,
+          "mom": {
+            "collected": {
+              "absolute": 13000000,
+              "percent": 108.33
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": -5800033.33,
+              "percent": -1.51
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -999966.67,
+              "percent": -50
+            },
+            "disbursed": {
+              "absolute": -18520000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 102472000,
+              "percent": 37.11
+            }
+          }
+        },
+        {
+          "month": "2026-09",
+          "disbursed": 0,
+          "moneyIn": 4120000,
+          "reversed": 0,
+          "writtenOff": 1380000,
+          "waived": 240000,
+          "penaltyCharged": 0,
+          "principalPaid": 4688000,
+          "interestPaid": 612000,
+          "penaltyPaid": 440000,
+          "interestAccrued": 216000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -3524000,
+          "loansOpened": 0,
+          "transactions": 4,
+          "closingOutstanding": 375068000,
+          "collected": 4120000,
+          "mom": {
+            "collected": {
+              "absolute": 3119966.67,
+              "percent": 311.99
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": -3524000,
+              "percent": -0.93
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -3420000,
+              "percent": -45.36
+            },
+            "disbursed": {
+              "absolute": -18290000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 88198000,
+              "percent": 30.74
+            }
+          }
+        },
+        {
+          "month": "2026-10",
+          "disbursed": 0,
+          "moneyIn": 1050000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 0,
+          "interestPaid": 0,
+          "penaltyPaid": 150000,
+          "interestAccrued": 0,
+          "penaltyAdded": 150000,
+          "outstandingDelta": 0,
+          "loansOpened": 0,
+          "transactions": 2,
+          "closingOutstanding": 375068000,
+          "collected": 1050000,
+          "mom": {
+            "collected": {
+              "absolute": -3070000,
+              "percent": -74.51
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 0,
+              "percent": 0
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -950000,
+              "percent": -47.5
+            },
+            "disbursed": {
+              "absolute": -25528000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 64670000,
+              "percent": 20.83
+            }
+          }
+        }
+      ],
+      "totals": {
+        "disbursed": 100,
+        "moneyIn": 30310100,
+        "reversed": 13500000,
+        "collected": 16810100,
+        "interestPaid": 22268000,
+        "penaltyPaid": 590000,
+        "writtenOff": 23936000,
+        "loansOpened": 1
+      }
+    },
+    "months16": {
+      "from": "2025-07",
+      "to": "2026-10",
+      "months": 16,
+      "openingOutstanding": 0,
+      "closingOutstanding": 375068000,
+      "loanBookOutstanding": 375068000,
+      "rows": [
+        {
+          "month": "2025-07",
+          "disbursed": 259600000,
+          "moneyIn": 0,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 0,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 39600000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 259600000,
+          "loansOpened": 2,
+          "transactions": 2,
+          "closingOutstanding": 259600000,
+          "collected": 0,
+          "mom": {
+            "collected": {
+              "absolute": 0,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 259600000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 259600000,
+              "percent": null
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 0,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 259600000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 259600000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2025-08",
+          "disbursed": 18520000,
+          "moneyIn": 2000000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 0,
+          "interestPaid": 2000000,
+          "penaltyPaid": 0,
+          "interestAccrued": 2520000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 16520000,
+          "loansOpened": 2,
+          "transactions": 3,
+          "closingOutstanding": 276120000,
+          "collected": 2000000,
+          "mom": {
+            "collected": {
+              "absolute": 2000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": -241080000,
+              "percent": -92.87
+            },
+            "outstanding": {
+              "absolute": 16520000,
+              "percent": 6.36
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 2000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 18520000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 276120000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2025-09",
+          "disbursed": 18290000,
+          "moneyIn": 7540000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 5400000,
+          "interestPaid": 2140000,
+          "penaltyPaid": 0,
+          "interestAccrued": 2790000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 10750000,
+          "loansOpened": 2,
+          "transactions": 4,
+          "closingOutstanding": 286870000,
+          "collected": 7540000,
+          "mom": {
+            "collected": {
+              "absolute": 5540000,
+              "percent": 277
+            },
+            "disbursed": {
+              "absolute": -230000,
+              "percent": -1.24
+            },
+            "outstanding": {
+              "absolute": 10750000,
+              "percent": 3.89
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 7540000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 18290000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 286870000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2025-10",
+          "disbursed": 25528000,
+          "moneyIn": 2000000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 2000000,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 3528000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 23528000,
+          "loansOpened": 3,
+          "transactions": 4,
+          "closingOutstanding": 310398000,
+          "collected": 2000000,
+          "mom": {
+            "collected": {
+              "absolute": -5540000,
+              "percent": -73.47
+            },
+            "disbursed": {
+              "absolute": 7238000,
+              "percent": 39.57
+            },
+            "outstanding": {
+              "absolute": 23528000,
+              "percent": 8.2
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 2000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 25528000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 310398000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2025-11",
+          "disbursed": 52360000,
+          "moneyIn": 2000000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 2000000,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 9360000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 50360000,
+          "loansOpened": 3,
+          "transactions": 4,
+          "closingOutstanding": 360758000,
+          "collected": 2000000,
+          "mom": {
+            "collected": {
+              "absolute": 0,
+              "percent": 0
+            },
+            "disbursed": {
+              "absolute": 26832000,
+              "percent": 105.11
+            },
+            "outstanding": {
+              "absolute": 50360000,
+              "percent": 16.22
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 2000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 52360000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 360758000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2025-12",
+          "disbursed": 79592000,
+          "moneyIn": 0,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 4000000,
+          "principalPaid": 0,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 20592000,
+          "penaltyAdded": 4000000,
+          "outstandingDelta": 83592000,
+          "loansOpened": 2,
+          "transactions": 3,
+          "closingOutstanding": 444350000,
+          "collected": 0,
+          "mom": {
+            "collected": {
+              "absolute": -2000000,
+              "percent": -100
+            },
+            "disbursed": {
+              "absolute": 27232000,
+              "percent": 52.01
+            },
+            "outstanding": {
+              "absolute": 83592000,
+              "percent": 23.17
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 0,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 79592000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 444350000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-01",
+          "disbursed": 58577000,
+          "moneyIn": 68648000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 26000000,
+          "interestPaid": 38088000,
+          "penaltyPaid": 4000000,
+          "interestAccrued": 8577000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -9511000,
+          "loansOpened": 3,
+          "transactions": 7,
+          "closingOutstanding": 434839000,
+          "collected": 68648000,
+          "mom": {
+            "collected": {
+              "absolute": 68648000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": -21015000,
+              "percent": -26.4
+            },
+            "outstanding": {
+              "absolute": -9511000,
+              "percent": -2.14
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 68648000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 58577000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 434839000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-02",
+          "disbursed": 2760000,
+          "moneyIn": 16750000,
+          "reversed": 6648000,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 1300000,
+          "principalPaid": 9045000,
+          "interestPaid": 7405000,
+          "penaltyPaid": 300000,
+          "interestAccrued": 908000,
+          "penaltyAdded": 1300000,
+          "outstandingDelta": -6042000,
+          "loansOpened": 1,
+          "transactions": 11,
+          "closingOutstanding": 428797000,
+          "collected": 10102000,
+          "mom": {
+            "collected": {
+              "absolute": -58546000,
+              "percent": -85.28
+            },
+            "disbursed": {
+              "absolute": -55817000,
+              "percent": -95.29
+            },
+            "outstanding": {
+              "absolute": -6042000,
+              "percent": -1.39
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 10102000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 2760000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 428797000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-03",
+          "disbursed": 2216000,
+          "moneyIn": 6950000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 2698000,
+          "interestPaid": 3252000,
+          "penaltyPaid": 1000000,
+          "interestAccrued": 216000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -4734000,
+          "loansOpened": 1,
+          "transactions": 6,
+          "closingOutstanding": 424063000,
+          "collected": 6950000,
+          "mom": {
+            "collected": {
+              "absolute": -3152000,
+              "percent": -31.2
+            },
+            "disbursed": {
+              "absolute": -544000,
+              "percent": -19.71
+            },
+            "outstanding": {
+              "absolute": -4734000,
+              "percent": -1.1
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 6950000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 2216000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 424063000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-04",
+          "disbursed": 1180000,
+          "moneyIn": 12645000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 12645000,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 180000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -11465000,
+          "loansOpened": 1,
+          "transactions": 5,
+          "closingOutstanding": 412598000,
+          "collected": 12645000,
+          "mom": {
+            "collected": {
+              "absolute": 5695000,
+              "percent": 81.94
+            },
+            "disbursed": {
+              "absolute": -1036000,
+              "percent": -46.75
+            },
+            "outstanding": {
+              "absolute": -11465000,
+              "percent": -2.7
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 12645000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 1180000,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 412598000,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-05",
+          "disbursed": 100,
+          "moneyIn": 12000000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 240000,
+          "principalPaid": 3900000,
+          "interestPaid": 8100000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 240000,
+          "outstandingDelta": -11759900,
+          "loansOpened": 1,
+          "transactions": 3,
+          "closingOutstanding": 400838100,
+          "collected": 12000000,
+          "mom": {
+            "collected": {
+              "absolute": -645000,
+              "percent": -5.1
+            },
+            "disbursed": {
+              "absolute": -1179900,
+              "percent": -99.99
+            },
+            "outstanding": {
+              "absolute": -11759900,
+              "percent": -2.85
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 12000000,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 100,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 400838100,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-06",
+          "disbursed": 0,
+          "moneyIn": 12140033.34,
+          "reversed": 1500000,
+          "writtenOff": 17556000,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 17140033.34,
+          "interestPaid": 12556000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 0,
+          "outstandingDelta": -28196033.34,
+          "loansOpened": 0,
+          "transactions": 6,
+          "closingOutstanding": 372642066.66,
+          "collected": 10640033.34,
+          "mom": {
+            "collected": {
+              "absolute": -1359966.66,
+              "percent": -11.33
+            },
+            "disbursed": {
+              "absolute": -100,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": -28196033.34,
+              "percent": -7.03
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": 10640033.34,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 372642066.66,
+              "percent": null
+            }
+          }
+        },
+        {
+          "month": "2026-07",
+          "disbursed": 0,
+          "moneyIn": 33.33,
+          "reversed": 12000000,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 250033.33,
+          "interestPaid": 0,
+          "penaltyPaid": 0,
+          "interestAccrued": 8100000,
+          "penaltyAdded": 0,
+          "outstandingDelta": 11749966.67,
+          "loansOpened": 0,
+          "transactions": 3,
+          "closingOutstanding": 384392033.33,
+          "collected": -11999966.67,
+          "mom": {
+            "collected": {
+              "absolute": -22640000.01,
+              "percent": -212.78
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 11749966.67,
+              "percent": 3.15
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -11999966.67,
+              "percent": null
+            },
+            "disbursed": {
+              "absolute": -259600000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 124792033.33,
+              "percent": 48.07
+            }
+          }
+        },
+        {
+          "month": "2026-08",
+          "disbursed": 0,
+          "moneyIn": 1000033.33,
+          "reversed": 0,
+          "writtenOff": 5000000,
+          "waived": 0,
+          "penaltyCharged": 200000,
+          "principalPaid": 5000033.33,
+          "interestPaid": 1000000,
+          "penaltyPaid": 0,
+          "interestAccrued": 0,
+          "penaltyAdded": 200000,
+          "outstandingDelta": -5800033.33,
+          "loansOpened": 0,
+          "transactions": 4,
+          "closingOutstanding": 378592000,
+          "collected": 1000033.33,
+          "mom": {
+            "collected": {
+              "absolute": 13000000,
+              "percent": 108.33
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": -5800033.33,
+              "percent": -1.51
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -999966.67,
+              "percent": -50
+            },
+            "disbursed": {
+              "absolute": -18520000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 102472000,
+              "percent": 37.11
+            }
+          }
+        },
+        {
+          "month": "2026-09",
+          "disbursed": 0,
+          "moneyIn": 4120000,
+          "reversed": 0,
+          "writtenOff": 1380000,
+          "waived": 240000,
+          "penaltyCharged": 0,
+          "principalPaid": 4688000,
+          "interestPaid": 612000,
+          "penaltyPaid": 440000,
+          "interestAccrued": 216000,
+          "penaltyAdded": 0,
+          "outstandingDelta": -3524000,
+          "loansOpened": 0,
+          "transactions": 4,
+          "closingOutstanding": 375068000,
+          "collected": 4120000,
+          "mom": {
+            "collected": {
+              "absolute": 3119966.67,
+              "percent": 311.99
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": -3524000,
+              "percent": -0.93
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -3420000,
+              "percent": -45.36
+            },
+            "disbursed": {
+              "absolute": -18290000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 88198000,
+              "percent": 30.74
+            }
+          }
+        },
+        {
+          "month": "2026-10",
+          "disbursed": 0,
+          "moneyIn": 1050000,
+          "reversed": 0,
+          "writtenOff": 0,
+          "waived": 0,
+          "penaltyCharged": 0,
+          "principalPaid": 0,
+          "interestPaid": 0,
+          "penaltyPaid": 150000,
+          "interestAccrued": 0,
+          "penaltyAdded": 150000,
+          "outstandingDelta": 0,
+          "loansOpened": 0,
+          "transactions": 2,
+          "closingOutstanding": 375068000,
+          "collected": 1050000,
+          "mom": {
+            "collected": {
+              "absolute": -3070000,
+              "percent": -74.51
+            },
+            "disbursed": {
+              "absolute": 0,
+              "percent": null
+            },
+            "outstanding": {
+              "absolute": 0,
+              "percent": 0
+            }
+          },
+          "yoy": {
+            "collected": {
+              "absolute": -950000,
+              "percent": -47.5
+            },
+            "disbursed": {
+              "absolute": -25528000,
+              "percent": -100
+            },
+            "outstanding": {
+              "absolute": 64670000,
+              "percent": 20.83
+            }
+          }
+        }
+      ],
+      "totals": {
+        "disbursed": 518623100,
+        "moneyIn": 148843100,
+        "reversed": 20148000,
+        "collected": 128695100,
+        "interestPaid": 75153000,
+        "penaltyPaid": 5890000,
+        "writtenOff": 23936000,
+        "loansOpened": 21
+      }
+    }
+  },
+  "closingOutstandingByMonth": {
+    "2025-07": "259600000.00",
+    "2025-08": "276120000.00",
+    "2025-09": "286870000.00",
+    "2025-10": "310398000.00",
+    "2025-11": "360758000.00",
+    "2025-12": "444350000.00",
+    "2026-01": "434839000.00",
+    "2026-02": "428797000.00",
+    "2026-03": "424063000.00",
+    "2026-04": "412598000.00",
+    "2026-05": "400838100.00",
+    "2026-06": "372642066.66",
+    "2026-07": "384392033.33",
+    "2026-08": "378592000.00",
+    "2026-09": "375068000.00",
+    "2026-10": "375068000.00"
+  },
+  "closingOutstandingByLoan": {
+    "LN-TST-000001": {
+      "2025-07": "23600000.00",
+      "2025-08": "21600000.00",
+      "2025-09": "19600000.00",
+      "2025-10": "17600000.00",
+      "2025-11": "15600000.00",
+      "2025-12": "15600000.00",
+      "2026-01": "13600000.00",
+      "2026-02": "13600000.00",
+      "2026-03": "13600000.00",
+      "2026-04": "13600000.00",
+      "2026-05": "13600000.00",
+      "2026-06": "13600000.00",
+      "2026-07": "13600000.00",
+      "2026-08": "13600000.00",
+      "2026-09": "13600000.00",
+      "2026-10": "13600000.00"
+    },
+    "LN-TST-000002": {
+      "2025-07": "0.00",
+      "2025-08": "5540000.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "0.00",
+      "2026-02": "0.00",
+      "2026-03": "0.00",
+      "2026-04": "0.00",
+      "2026-05": "0.00",
+      "2026-06": "0.00",
+      "2026-07": "0.00",
+      "2026-08": "0.00",
+      "2026-09": "0.00",
+      "2026-10": "0.00"
+    },
+    "LN-TST-000003": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "9440000.00",
+      "2025-10": "9440000.00",
+      "2025-11": "9440000.00",
+      "2025-12": "9440000.00",
+      "2026-01": "0.00",
+      "2026-02": "0.00",
+      "2026-03": "0.00",
+      "2026-04": "0.00",
+      "2026-05": "0.00",
+      "2026-06": "0.00",
+      "2026-07": "0.00",
+      "2026-08": "0.00",
+      "2026-09": "0.00",
+      "2026-10": "0.00"
+    },
+    "LN-TST-000004": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "3540000.00",
+      "2025-11": "3540000.00",
+      "2025-12": "3540000.00",
+      "2026-01": "3540000.00",
+      "2026-02": "2540000.00",
+      "2026-03": "2140000.00",
+      "2026-04": "2140000.00",
+      "2026-05": "2140000.00",
+      "2026-06": "0.00",
+      "2026-07": "0.00",
+      "2026-08": "0.00",
+      "2026-09": "0.00",
+      "2026-10": "0.00"
+    },
+    "LN-TST-000005": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "19320000.00",
+      "2025-12": "19320000.00",
+      "2026-01": "19320000.00",
+      "2026-02": "20320000.00",
+      "2026-03": "19120000.00",
+      "2026-04": "19120000.00",
+      "2026-05": "19120000.00",
+      "2026-06": "19120000.00",
+      "2026-07": "19120000.00",
+      "2026-08": "18120000.00",
+      "2026-09": "18120000.00",
+      "2026-10": "18120000.00"
+    },
+    "LN-TST-000006": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "1045000.00",
+      "2026-02": "695000.00",
+      "2026-03": "345000.00",
+      "2026-04": "0.00",
+      "2026-05": "0.00",
+      "2026-06": "0.00",
+      "2026-07": "0.00",
+      "2026-08": "0.00",
+      "2026-09": "0.00",
+      "2026-10": "0.00"
+    },
+    "LN-TST-000007": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "0.00",
+      "2026-02": "2360000.00",
+      "2026-03": "2360000.00",
+      "2026-04": "2060000.00",
+      "2026-05": "2060000.00",
+      "2026-06": "2060000.00",
+      "2026-07": "2060000.00",
+      "2026-08": "2060000.00",
+      "2026-09": "2060000.00",
+      "2026-10": "2060000.00"
+    },
+    "LN-TST-000008": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "68000000.00",
+      "2026-01": "68000000.00",
+      "2026-02": "68000000.00",
+      "2026-03": "68000000.00",
+      "2026-04": "68000000.00",
+      "2026-05": "68000000.00",
+      "2026-06": "58000000.00",
+      "2026-07": "58000000.00",
+      "2026-08": "58000000.00",
+      "2026-09": "58000000.00",
+      "2026-10": "58000000.00"
+    },
+    "LN-TST-000009": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "0.00",
+      "2026-02": "0.00",
+      "2026-03": "0.00",
+      "2026-04": "0.00",
+      "2026-05": "100.00",
+      "2026-06": "66.66",
+      "2026-07": "33.33",
+      "2026-08": "0.00",
+      "2026-09": "0.00",
+      "2026-10": "0.00"
+    },
+    "LN-TST-000010": {
+      "2025-07": "236000000.00",
+      "2025-08": "236000000.00",
+      "2025-09": "236000000.00",
+      "2025-10": "236000000.00",
+      "2025-11": "236000000.00",
+      "2025-12": "240000000.00",
+      "2026-01": "190000000.00",
+      "2026-02": "190000000.00",
+      "2026-03": "190000000.00",
+      "2026-04": "180000000.00",
+      "2026-05": "180000000.00",
+      "2026-06": "180000000.00",
+      "2026-07": "180000000.00",
+      "2026-08": "180000000.00",
+      "2026-09": "180000000.00",
+      "2026-10": "180000000.00"
+    },
+    "LN-TST-000011": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "6648000.00",
+      "2025-11": "6648000.00",
+      "2025-12": "6648000.00",
+      "2026-01": "0.00",
+      "2026-02": "6648000.00",
+      "2026-03": "6648000.00",
+      "2026-04": "6648000.00",
+      "2026-05": "6648000.00",
+      "2026-06": "6648000.00",
+      "2026-07": "6648000.00",
+      "2026-08": "6648000.00",
+      "2026-09": "6648000.00",
+      "2026-10": "6648000.00"
+    },
+    "LN-TST-000012": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "14160000.00",
+      "2025-12": "14160000.00",
+      "2026-01": "14160000.00",
+      "2026-02": "12460000.00",
+      "2026-03": "10460000.00",
+      "2026-04": "8460000.00",
+      "2026-05": "8460000.00",
+      "2026-06": "9960000.00",
+      "2026-07": "9960000.00",
+      "2026-08": "9960000.00",
+      "2026-09": "9960000.00",
+      "2026-10": "9960000.00"
+    },
+    "LN-TST-000013": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "53100000.00",
+      "2026-02": "53100000.00",
+      "2026-03": "53100000.00",
+      "2026-04": "53100000.00",
+      "2026-05": "41100000.00",
+      "2026-06": "41100000.00",
+      "2026-07": "53100000.00",
+      "2026-08": "53100000.00",
+      "2026-09": "53100000.00",
+      "2026-10": "53100000.00"
+    },
+    "LN-TST-000014": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "11592000.00",
+      "2026-01": "11592000.00",
+      "2026-02": "11592000.00",
+      "2026-03": "8592000.00",
+      "2026-04": "8592000.00",
+      "2026-05": "8592000.00",
+      "2026-06": "8592000.00",
+      "2026-07": "8342000.00",
+      "2026-08": "8342000.00",
+      "2026-09": "8342000.00",
+      "2026-10": "8342000.00"
+    },
+    "LN-TST-000015": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "8850000.00",
+      "2025-10": "8850000.00",
+      "2025-11": "8850000.00",
+      "2025-12": "8850000.00",
+      "2026-01": "8850000.00",
+      "2026-02": "8850000.00",
+      "2026-03": "8850000.00",
+      "2026-04": "8850000.00",
+      "2026-05": "8850000.00",
+      "2026-06": "8850000.00",
+      "2026-07": "8850000.00",
+      "2026-08": "8850000.00",
+      "2026-09": "8850000.00",
+      "2026-10": "8850000.00"
+    },
+    "LN-TST-000016": {
+      "2025-07": "0.00",
+      "2025-08": "12980000.00",
+      "2025-09": "12980000.00",
+      "2025-10": "12980000.00",
+      "2025-11": "12980000.00",
+      "2025-12": "12980000.00",
+      "2026-01": "12980000.00",
+      "2026-02": "3980000.00",
+      "2026-03": "3980000.00",
+      "2026-04": "3980000.00",
+      "2026-05": "3980000.00",
+      "2026-06": "3980000.00",
+      "2026-07": "3980000.00",
+      "2026-08": "3980000.00",
+      "2026-09": "3980000.00",
+      "2026-10": "3980000.00"
+    },
+    "LN-TST-000017": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "4432000.00",
+      "2026-02": "4432000.00",
+      "2026-03": "4432000.00",
+      "2026-04": "4432000.00",
+      "2026-05": "4672000.00",
+      "2026-06": "4672000.00",
+      "2026-07": "4672000.00",
+      "2026-08": "4672000.00",
+      "2026-09": "312000.00",
+      "2026-10": "312000.00"
+    },
+    "LN-TST-000018": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "15340000.00",
+      "2025-11": "15340000.00",
+      "2025-12": "15340000.00",
+      "2026-01": "15340000.00",
+      "2026-02": "15340000.00",
+      "2026-03": "15340000.00",
+      "2026-04": "15340000.00",
+      "2026-05": "15340000.00",
+      "2026-06": "0.00",
+      "2026-07": "0.00",
+      "2026-08": "0.00",
+      "2026-09": "0.00",
+      "2026-10": "0.00"
+    },
+    "LN-TST-000019": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "18880000.00",
+      "2025-12": "18880000.00",
+      "2026-01": "18880000.00",
+      "2026-02": "14880000.00",
+      "2026-03": "14880000.00",
+      "2026-04": "14880000.00",
+      "2026-05": "14880000.00",
+      "2026-06": "14880000.00",
+      "2026-07": "14880000.00",
+      "2026-08": "9880000.00",
+      "2026-09": "9880000.00",
+      "2026-10": "9880000.00"
+    },
+    "LN-TST-000020": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "0.00",
+      "2026-02": "0.00",
+      "2026-03": "2216000.00",
+      "2026-04": "2216000.00",
+      "2026-05": "2216000.00",
+      "2026-06": "0.00",
+      "2026-07": "0.00",
+      "2026-08": "0.00",
+      "2026-09": "2216000.00",
+      "2026-10": "2216000.00"
+    },
+    "LN-TST-000021": {
+      "2025-07": "0.00",
+      "2025-08": "0.00",
+      "2025-09": "0.00",
+      "2025-10": "0.00",
+      "2025-11": "0.00",
+      "2025-12": "0.00",
+      "2026-01": "0.00",
+      "2026-02": "0.00",
+      "2026-03": "0.00",
+      "2026-04": "1180000.00",
+      "2026-05": "1180000.00",
+      "2026-06": "1180000.00",
+      "2026-07": "1180000.00",
+      "2026-08": "1380000.00",
+      "2026-09": "0.00",
+      "2026-10": "0.00"
+    }
+  },
+  "comparisons": {
+    "2025-07": {
+      "collected": {
+        "mom": {
+          "absolute": 0,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 0,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 0,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-08": {
+      "collected": {
+        "mom": {
+          "absolute": 2000000,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -241080000,
+          "percent": -92.87
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 16520000,
+          "percent": 6.36
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-09": {
+      "collected": {
+        "mom": {
+          "absolute": 5540000,
+          "percent": 277
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -230000,
+          "percent": -1.24
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 10750000,
+          "percent": 3.89
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-10": {
+      "collected": {
+        "mom": {
+          "absolute": -5540000,
+          "percent": -73.47
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 7238000,
+          "percent": 39.57
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 23528000,
+          "percent": 8.2
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-11": {
+      "collected": {
+        "mom": {
+          "absolute": 0,
+          "percent": 0
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 26832000,
+          "percent": 105.11
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 50360000,
+          "percent": 16.22
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2025-12": {
+      "collected": {
+        "mom": {
+          "absolute": -2000000,
+          "percent": -100
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 27232000,
+          "percent": 52.01
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 83592000,
+          "percent": 23.17
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2026-01": {
+      "collected": {
+        "mom": {
+          "absolute": 68648000,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -21015000,
+          "percent": -26.4
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -9511000,
+          "percent": -2.14
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2026-02": {
+      "collected": {
+        "mom": {
+          "absolute": -58546000,
+          "percent": -85.28
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -55817000,
+          "percent": -95.29
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -6042000,
+          "percent": -1.39
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2026-03": {
+      "collected": {
+        "mom": {
+          "absolute": -3152000,
+          "percent": -31.2
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -544000,
+          "percent": -19.71
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -4734000,
+          "percent": -1.1
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2026-04": {
+      "collected": {
+        "mom": {
+          "absolute": 5695000,
+          "percent": 81.94
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -1036000,
+          "percent": -46.75
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -11465000,
+          "percent": -2.7
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2026-05": {
+      "collected": {
+        "mom": {
+          "absolute": -645000,
+          "percent": -5.1
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -1179900,
+          "percent": -99.99
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -11759900,
+          "percent": -2.85
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2026-06": {
+      "collected": {
+        "mom": {
+          "absolute": -1359966.66,
+          "percent": -11.33
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": -100,
+          "percent": -100
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -28196033.34,
+          "percent": -7.03
+        },
+        "yoy": {
+          "absolute": 0,
+          "percent": null
+        }
+      }
+    },
+    "2026-07": {
+      "collected": {
+        "mom": {
+          "absolute": -22640000.01,
+          "percent": -212.78
+        },
+        "yoy": {
+          "absolute": -11999966.67,
+          "percent": null
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 0,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": -259600000,
+          "percent": -100
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 11749966.67,
+          "percent": 3.15
+        },
+        "yoy": {
+          "absolute": 124792033.33,
+          "percent": 48.07
+        }
+      }
+    },
+    "2026-08": {
+      "collected": {
+        "mom": {
+          "absolute": 13000000,
+          "percent": 108.33
+        },
+        "yoy": {
+          "absolute": -999966.67,
+          "percent": -50
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 0,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": -18520000,
+          "percent": -100
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -5800033.33,
+          "percent": -1.51
+        },
+        "yoy": {
+          "absolute": 102472000,
+          "percent": 37.11
+        }
+      }
+    },
+    "2026-09": {
+      "collected": {
+        "mom": {
+          "absolute": 3119966.67,
+          "percent": 311.99
+        },
+        "yoy": {
+          "absolute": -3420000,
+          "percent": -45.36
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 0,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": -18290000,
+          "percent": -100
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": -3524000,
+          "percent": -0.93
+        },
+        "yoy": {
+          "absolute": 88198000,
+          "percent": 30.74
+        }
+      }
+    },
+    "2026-10": {
+      "collected": {
+        "mom": {
+          "absolute": -3070000,
+          "percent": -74.51
+        },
+        "yoy": {
+          "absolute": -950000,
+          "percent": -47.5
+        }
+      },
+      "disbursed": {
+        "mom": {
+          "absolute": 0,
+          "percent": null
+        },
+        "yoy": {
+          "absolute": -25528000,
+          "percent": -100
+        }
+      },
+      "outstanding": {
+        "mom": {
+          "absolute": 0,
+          "percent": 0
+        },
+        "yoy": {
+          "absolute": 64670000,
+          "percent": 20.83
+        }
+      }
+    }
+  },
+  "totals": {
+    "disbursed": "518623100.00",
+    "disbursedCash": "431000100.00",
+    "collected": "128695100.00",
+    "interestPaid": "72417000.00",
+    "penaltyPaid": "5690000.00",
+    "principalPaid": "69276100.00",
+    "reversed": "20148000.00",
+    "waived": "240000.00",
+    "writtenOff": "23936000.00",
+    "postedTransactions": 71,
+    "closingOutstanding": "375068000.00",
+    "loanBookOutstanding": "375068000.00",
+    "ledgerOutstanding": "375068000.00",
+    "ledgerMatchesLoanBook": true
+  },
+  "rowCounts": {
+    "users": 11,
+    "customers": 26,
+    "loan_products": 8,
+    "loans": 21,
+    "financial_transactions": 73,
+    "financial_transaction_lines": 116,
+    "payment_requests": 38,
+    "payment_allocations": 54,
+    "approval_workflows": 77,
+    "approval_steps": 146,
+    "audit_logs": 364,
+    "customer_credits": 2,
+    "credit_ledger": 3,
+    "settlement_agreements": 4,
+    "kyc_documents": 88,
+    "kyc_document_contents": 88,
+    "user_avatars": 2,
+    "user_avatar_contents": 2
+  },
+  "credits": {
+    "00000000-2000-4000-8000-000000000003": {
+      "balance": 160000,
+      "ledger": [
+        {
+          "type": "ACCRUED",
+          "amount": 560000,
+          "balanceAfter": 560000
+        },
+        {
+          "type": "USED",
+          "amount": 400000,
+          "balanceAfter": 160000
+        }
+      ]
+    },
+    "00000000-2000-4000-8000-000000000020": {
+      "balance": 900000,
+      "ledger": [
+        {
+          "type": "ACCRUED",
+          "amount": 900000,
+          "balanceAfter": 900000
+        }
+      ]
+    }
+  },
+  "statuses": {
+    "LN-TST-000001": "ACTIVE",
+    "LN-TST-000002": "CLOSED",
+    "LN-TST-000003": "CLOSED",
+    "LN-TST-000004": "CLOSED",
+    "LN-TST-000005": "ACTIVE",
+    "LN-TST-000006": "CLOSED",
+    "LN-TST-000007": "ACTIVE",
+    "LN-TST-000008": "ACTIVE",
+    "LN-TST-000009": "CLOSED",
+    "LN-TST-000010": "ACTIVE",
+    "LN-TST-000011": "ACTIVE",
+    "LN-TST-000012": "ACTIVE",
+    "LN-TST-000013": "ACTIVE",
+    "LN-TST-000014": "ACTIVE",
+    "LN-TST-000015": "ACTIVE",
+    "LN-TST-000016": "ACTIVE",
+    "LN-TST-000017": "ACTIVE",
+    "LN-TST-000018": "WRITTEN_OFF",
+    "LN-TST-000019": "ACTIVE",
+    "LN-TST-000020": "ACTIVE",
+    "LN-TST-000021": "CLOSED"
+  },
+  "invariant": {
+    "monthsWithNoCollections": [
+      "2025-07",
+      "2025-12"
+    ],
+    "monthsWithNoDisbursements": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10"
+    ],
+    "largestOutstandingLoan": "LN-TST-000010",
+    "writtenOffLoans": [
+      "LN-TST-000018"
+    ],
+    "closedLoans": [
+      "LN-TST-000002",
+      "LN-TST-000003",
+      "LN-TST-000004",
+      "LN-TST-000006",
+      "LN-TST-000009",
+      "LN-TST-000021"
+    ],
+    "activeLoans": 14
+  }
+}

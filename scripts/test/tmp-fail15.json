@@ -1,0 +1,3 @@
+id=E2E-095
+F-INV-1: ทุก step ที่ APPROVED ต้องมี audit ที่อ้าง transactionId ของเอกสารที่ถูกอนุมัติ (per-document attribution)
+| actual: 136 steps ไม่มีแถว audit ที่อ้าง transactionId / แถว APPROVAL_STEP_APPROVED ในฐานข้อมูลมี transactionId=NULL ทั้ง 144 แถว

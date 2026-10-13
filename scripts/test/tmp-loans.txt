@@ -1,0 +1,24 @@
+246: input: 'loan.status',
+255: txs.filter((t) => t.status === 'PENDING_APPROVAL').length !== byId[id].pendingTransactionCount
+263: .map((i) => `${byId[i].loanNumber}: ${details[i].transactions.filter((t) => t.status === 'POSTED').length}/${details[i].transactions.filter((t) => t.s
+271: const CHARGE_TYPES = ['DISBURSEMENT', 'PENALTY', 'ADJUSTMENT', 'WRITE_OFF_REVERSAL', 'PAYMENT_REVERSAL'];
+336: WHERE tx.loanId IN (?) AND tx.status='POSTED' AND tx.transactionType='DISBURSEMENT'
+347: check(CAT, 'line ของ DISBURSEMENT ทุก loan = เงินต้น + ดอกเบี้ย flat ตาม expected.json (คำนวณจาก ledger)', {
+348: input: 'DISBURSEMENT component lines vs expected.principal/billedInterest',
+408: const SCHEDULE_CHARGE_TYPES = ['DISBURSEMENT', 'PENALTY', 'ADJUSTMENT'];
+588: expected: `paid 0 (no PAYMENT/SETTLEMENT in ledger, only DISBURSEMENT+WRITE_OFF+WRITE_OFF_REVERSAL)`,
+712: await conn.query('SELECT userId, amount, newStatus FROM audit_logs WHERE action=? AND loanId=?', ['LOAN_DISBURSED', res.json.data.loan.id])
+714: check(CAT, `audit LOAN_DISBURSED ของ ${role} อ้างถึงผู้ใช้ที่สร้างจริงและลงสถานะ ACTIVE`, {
+829: check(CAT, `transaction DISBURSEMENT ถูกโพสต์ทันที (POSTED) และแยกรายส่วนครบ (${v.label})`, {
+832: transactionType: 'DISBURSEMENT',
+848: tx?.transactionType === 'DISBURSEMENT' &&
+905: await conn.query(`SELECT loanId, action FROM audit_logs WHERE loanId IN (?) AND action IN ('LOAN_DISBURSED','TRANSACTION_POSTED')`, [createdIds])
+907: check(CAT, 'ทุกการออกกู้มี audit LOAN_DISBURSED + TRANSACTION_POSTED ครบคู่', {
+916: WHERE a.action='LOAN_DISBURSED' AND l.id IN (?) AND a.amount <> l.principalAmount`,
+920: check(CAT, 'audit LOAN_DISBURSED บันทึกจำนวนเงิน = เงินต้นที่กู้', {
+921: input: 'audit_logs LOAN_DISBURSED.amount vs loans.principalAmount',
+963: pass: createdLoans.every((l) => l.status === 'ACTIVE' && l.penaltyPolicy && l.currency === 'LAK'),
+966: check(CAT, 'เลข loan ตั้ง auto เป็น LN-###### และไม่ซ้ำกัน', {
+1036: check(CAT, 'อ่าน detail ของ loan ที่สร้างใหม่ได้ทันที (มี transaction เดียวคือ DISBURSEMENT/POSTED)', {
+1038: expected: '1 transaction POSTED DISBURSEMENT',
+1042: newDetail.json.data.transactions[0].transactionType === 'DISBURSEMENT' &&

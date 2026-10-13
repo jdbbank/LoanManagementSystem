@@ -1,0 +1,152 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_NAME:-loan_management}
+      MYSQL_USER: ${DB_USER:-loan_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "3307:3306"
+    volumes:
+      - loan_mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping --host=127.0.0.1 --user=root --password="$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-loan_app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: ${DB_NAME:-loan_management}
+      DB_SYNCHRONIZE: "false"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost}
+      NOTIFY_ENABLED: ${NOTIFY_ENABLED:-true}
+      NOTIFY_TRANSPORT: kafka
+      NOTIFY_DEFAULT_LOCALE: ${NOTIFY_DEFAULT_LOCALE:-lo}
+      NOTIFY_SECRET_KEY: ${NOTIFY_SECRET_KEY:?Set NOTIFY_SECRET_KEY in .env}
+      KAFKA_BROKERS: kafka:29092
+      MAILER_BASE_URL: http://mailer:4100
+      MAILER_API_KEY: ${MAILER_API_KEY:?Set MAILER_API_KEY in .env}
+    expose:
+      - "4000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mailer:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    restart: unless-stopped
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    volumes:
+      - loan_zookeeper_data:/bitnami/zookeeper
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "echo ruok | nc -w 2 localhost 2181 | grep imok"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  kafka:
+    image: bitnami/kafka:3.7
+    restart: unless-stopped
+    environment:
+      KAFKA_CFG_BROKER_ID: 1
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9094
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "${KAFKA_HOST_PORT:-9094}:9094"
+    volumes:
+      - loan_kafka_data:/bitnami/kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - kafka-topics.sh --bootstrap-server localhost:29092 --list
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 25s
+
+  mailer:
+    build:
+      context: .
+      dockerfile: mailer/Dockerfile
+    restart: unless-stopped
+    environment:
+      MAILER_PORT: 4100
+      MAILER_API_KEY: ${MAILER_API_KEY:?Set MAILER_API_KEY in .env}
+      KAFKA_CONSUMER_ENABLED: "true"
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC: loan.notification
+      KAFKA_DLQ_TOPIC: loan.notification.dlq
+      KAFKA_CONSUMER_GROUP: mailer-send
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-Loan Management System <no-reply@loanms.local>}
+    expose:
+      - "4100"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  loan_mysql_data:
+  loan_zookeeper_data:
+  loan_kafka_data:

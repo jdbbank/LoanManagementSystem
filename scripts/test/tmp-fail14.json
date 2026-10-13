@@ -1,0 +1,92 @@
+[
+  {
+    "id": "E2E-009",
+    "category": "concurrency",
+    "name": "F-CONC-3: Checker สองคนอนุมัติ approval step เดียวกันพร้อมกัน — ต้องมีผู้ชนะคนเดียว",
+    "input": "penalty 5000000.00 (ระดับ CHECKER -> HEAD) แล้ว POST /api/approvals/steps/51d3cd11-9628-4be1-ba4c-6e48601025f1/decision x2 (checker1, checker2)",
+    "expected": "2xx=1 และอีกครั้ง 409 \"This approval step has already been decided\"",
+    "actual": "2xx=2 codes=200,200 {\"data\":{\"workflow\":{\"id\":\"c6c90661-2eaa-440a-97ea-6695cc97a2d9\",\"subjectType\":\"FINANCIAL_",
+    "pass": false,
+    "note": "approval.service.ts:132-143 อ่าน step/workflow โดยไม่มี lock — ถ้าผ่านทั้งคู่ ระดับ HEAD อาจถูกข้าม (ตรวจ case ถัดไป)"
+  },
+  {
+    "id": "E2E-011",
+    "category": "concurrency",
+    "name": "C: หลักฐานการอนุมัติระดับ CHECKER มีครั้งเดียวใน audit trail",
+    "input": "COUNT audit APPROVAL_STEP_APPROVED ของ transaction ที่กดซ้ำพร้อมกัน",
+    "expected": "<= 1",
+    "actual": "2 แถว",
+    "pass": false,
+    "note": ""
+  },
+  {
+    "id": "E2E-017",
+    "category": "concurrency",
+    "name": "F-CONC-1: ใช้ credit 400,000 บนเงินกู้ 2 ฉบับพร้อมกัน — ต้องมีอย่างน้อยหนึ่งครั้งที่ถูกปฏิเสธ",
+    "input": "Promise.all POST /transactions/:id/post x2 (approve codes=200/200)",
+    "expected": "2xx <= 1 (ครั้งถัดไปต้อง 422 Insufficient customer credit)",
+    "actual": "2xx=2 codes=200,200 {\"data\":{\"transaction\":{\"id\":\"5135ac8e-d371-40f4-ab55-07cdba92103e\",\"referenceNo\":\"FT-0000",
+    "pass": false,
+    "note": "posting-engine.service.ts:198-207 อ่าน/ปรับ credit โดย lock เฉพาะ loan ของตัวเอง (คนละแถว) -> แถว CustomerCredit ไม่มี lock"
+  },
+  {
+    "id": "E2E-018",
+    "category": "concurrency",
+    "name": "F-CONC-1: บัญชี credit ปิดยอด — ACCRUED - USED ต้องเท่ากับ balance ที่เก็บไว้",
+    "input": "SUM(credit_ledger ACCRUED/USED) vs customer_credits.balance ของ C5",
+    "expected": "-400000.00 = balance",
+    "actual": "accrued=400000.00 used=800000.00 balance=0.00 ledger=[[\"ACCRUED\",\"400000.00\",\"400000.00\"],[\"USED\",\"400000.00\",\"0.00\"],[\"USED\",\"400000.00\",\"0.00\"]]",
+    "pass": false,
+    "note": ""
+  },
+  {
+    "id": "E2E-019",
+    "category": "concurrency",
+    "name": "F-CONC-1: ยอด credit ที่ใช้รวม (USED) ต้องไม่เกิน 400,000 ที่มีอยู่จริง (เงินไม่ถูกเสกขึ้น)",
+    "input": "SUM(amount) ของ credit_ledger type=USED",
+    "expected": "<= 400000.00",
+    "actual": "800000.00",
+    "pass": false,
+    "note": ""
+  },
+  {
+    "id": "E2E-022",
+    "category": "concurrency",
+    "name": "LC3: ยอดคงค้างจริง = oracle ทุกทศนิยม (race ไม่ทำให้เงินงอกหรือหาย)",
+    "input": "GET /api/loans/LN-000025",
+    "expected": "PENALTY=0.00 PAST_INTEREST=108000.00 PAST_PRINCIPAL=1000000.00 total 1108000.00",
+    "actual": "PENALTY=0.00 PAST_INTEREST=0.00 PAST_PRINCIPAL=708000.00 total 708000.00 | credit บน LC3",
+    "pass": false,
+    "note": ""
+  },
+  {
+    "id": "E2E-023",
+    "category": "concurrency",
+    "name": "LP: ยอดคงค้างจริง = oracle ทุกทศนิยม (race ไม่ทำให้เงินงอกหรือหาย)",
+    "input": "GET /api/loans/LN-000022",
+    "expected": "PENALTY=0.00 PAST_INTEREST=0.00 PAST_PRINCIPAL=2224000.00 total 2224000.00",
+    "actual": "PENALTY=0.00 PAST_INTEREST=0.00 PAST_PRINCIPAL=2824000.00 total 2824000.00 | payment 600,000 โพสต์ปกติ",
+    "pass": false,
+    "note": ""
+  },
+  {
+    "id": "E2E-024",
+    "category": "concurrency",
+    "name": "E: สร้างคำขอกกลับรายการทั้งจำนวน 2 ครั้งพร้อมกัน (ระบบนับเฉพาะ reversal ที่ POSTED -> ไม่มียอดถูกกันไว้)",
+    "input": "Promise.all x2 POST /api/transactions/reversals amount=600,000 (ทั้งจำนวนของต้นทาง)",
+    "expected": "1-2 รายการ PENDING_APPROVAL (ยังไม่ผิด — ดูผลตอนโพสต์)",
+    "actual": "2xx=0 codes=422,422",
+    "pass": false,
+    "note": "transactions.router.ts:283 alreadyReversedComponents นับเฉพาะสถานะ POSTED"
+  },
+  {
+    "id": "E2E-027",
+    "category": "14-concurrency",
+    "name": "suite crashed: Cannot read properties of undefined (reading 'status')",
+    "input": "-",
+    "expected": "suite completes",
+    "actual": "TypeError: Cannot read properties of undefined (reading 'status')\n    at is2xx (file:///D:/Project/indee-code/LoanManagementSystem/scripts/test/suites/14-concurrency.mjs:25:24)\n    at Module.suite (file:///D:/Project/indee-code/LoanManagementSystem/scripts/test/suites/14-concurrency.mjs:544:9)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async file:///D",
+    "pass": false,
+    "note": "runtime error"
+  }
+]
