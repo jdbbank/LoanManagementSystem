@@ -1,7 +1,0 @@
-top meta,loans,monthly,apiRows,report,closingOutstandingByMonth,closingOutstandingByLoan,comparisons,totals,rowCounts,credits,statuses,invariant
-totals disbursed,disbursedCash,collected,interestPaid,penaltyPaid,principalPaid,reversed,waived,writtenOff,postedTransactions,closingOutstanding,loanBookOutstanding,ledgerOutstanding,ledgerMatchesLoanBook
-loan loanId,customerId,customerNumber,product,status,principal,billedInterest,outstanding,periodCount,scheduleDueDates,postedTransactionCount,pendingTransactionCount
-monthly disbursedCash,booked,moneyIn,collected,interestPaid,penaltyPaid,principalPaid,penaltyCharged,reversed,waived,writtenOff,transactions
-hasByLoan true hasByMonth true
-invariant {"monthsWithNoCollections":["2025-07","2025-12"],"monthsWithNoDisbursements":["2026-06","2026-07","2026-08","2026-09","2026-10"],"largestOutstandingLoan":"LN-TST-000010","writtenOffLoans":["LN-TST-000018"],"closedLoans":["LN-TST-000002","LN-TST-000003","LN-TST-000004","LN-TST-000006","LN-TST-000009","LN-TST-000021"],"activeLoans":14}
-credits {"00000000-2000-4000-8000-000000000003":{"balance":160000,"ledger":[{"type":"ACCRUED","amount":560000,"balanceAfter":560000},{"type":"USED","amount":400000,"balanceAfter":160000}]},"00000000-2000-4000-8000-000000000020":{"balance":900000,"ledger":[{"type":"ACCRUED","amount":900000,"balanceAfter":900000}]}}

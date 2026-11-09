@@ -1,4 +1,0 @@
-2026-10-13T05:31:15.041Z config                75 cases   73 pass    2 FAIL  E2E-066,E2E-068
-----------------------------------------------------------------
-config                   73 pass    2 fail
-TOTAL 75 cases, 2 failures -> scripts/test/results.json

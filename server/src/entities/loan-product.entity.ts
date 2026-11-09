@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
-import { decimalColumn, PenaltyPolicy, PeriodUnit } from './types';
+import { decimalColumn, InterestMethod, PenaltyPolicy, PeriodUnit } from './types';
 
 @Entity('loan_products')
 export class LoanProduct {
@@ -19,6 +19,10 @@ export class LoanProduct {
   @Column({ type: 'enum', enum: PeriodUnit, default: PeriodUnit.YEAR })
   interestRatePeriod!: PeriodUnit;
 
+  /** How interest is priced. FLAT is the historic behaviour, so products created before this column keep it. */
+  @Column({ type: 'enum', enum: InterestMethod, default: InterestMethod.FLAT })
+  interestMethod!: InterestMethod;
+
   /** Term as configured by the product owner. */
   @Column({ type: 'int', default: 12 })
   termValue!: number;
@@ -33,6 +37,13 @@ export class LoanProduct {
   /** TEXT column: MySQL allows no default, so products created before this field read back as the default policy. */
   @Column({ type: 'simple-json', nullable: true })
   penaltyPolicy!: PenaltyPolicy | null;
+
+  /**
+   * Percent of the principal still owed, taken when the customer settles the whole debt before the
+   * last instalment falls due. 0 means no fee — what every product predating this column says.
+   */
+  @Column(decimalColumn({ precision: 9, scale: 4 }))
+  earlySettlementFeePercent!: number;
 
   @Column({ type: 'varchar', length: 3, default: 'LAK' })
   currency!: string;

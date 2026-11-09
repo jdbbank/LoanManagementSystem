@@ -1,7 +1,6 @@
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
 import Stack from '@mui/material/Stack';
@@ -11,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, unwrap } from '../api/client';
 import { formatLak, type DashboardStats, type FinancialTransaction } from '../api/types';
+import { LoadingPanel } from '../components/LoadingOverlay';
+import StatCard from '../components/StatCard';
 import StatusChip from '../components/StatusChip';
 
 const useDashboardStats = () =>
@@ -25,38 +26,12 @@ const useRecentActivity = () =>
     queryFn: () => api.get('/dashboard/recent-activity').then(unwrap<FinancialTransaction[]>),
   });
 
-function StatCard({ title, value, hint }: { title: string; value: string; hint?: string }) {
-  return (
-    <Card>
-      <CardContent>
-        <Typography variant="body2" color="text.secondary">
-          {title}
-        </Typography>
-        <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.5 }}>
-          {value}
-        </Typography>
-        {hint && (
-          <Typography variant="caption" color="text.secondary">
-            {hint}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function DashboardPage() {
   const { t: translate } = useTranslation();
   const { data, isLoading } = useDashboardStats();
   const { data: recent } = useRecentActivity();
 
-  if (isLoading || !data) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (isLoading || !data) return <LoadingPanel label={translate('common.loading')} />;
 
   const statusEntries = Object.entries(data.loansByStatus) as [string, number][];
   const statusTotal = statusEntries.reduce((acc, [, count]) => acc + count, 0);

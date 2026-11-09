@@ -36,7 +36,7 @@ services:
       DB_NAME: ${DB_NAME:-loan_management}
       DB_SYNCHRONIZE: "false"
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost}
       NOTIFY_ENABLED: ${NOTIFY_ENABLED:-true}

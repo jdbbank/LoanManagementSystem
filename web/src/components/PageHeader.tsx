@@ -25,7 +25,9 @@ export default function PageHeader({
     Reports: 'pages.reports',
     'Audit Trail': 'pages.audit',
     Users: 'pages.users',
+    Profile: 'pages.profile',
     'System Configuration': 'pages.admin',
+    'User Manual': 'pages.manual',
   };
   const translatedTitle = pageKeys[title]
     ? t(pageKeys[title])

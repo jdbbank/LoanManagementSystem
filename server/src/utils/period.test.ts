@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PeriodUnit } from '../entities/types';
 import {
   addCalendarMonths,
+  decliningPeriodInterest,
   elapsedDays,
   flatInterestTotal,
   periodCount,
@@ -33,6 +34,24 @@ describe('flatInterestTotal', () => {
   it('charges one whole period even when the term rounds below a month', () => {
     expect(periodCount(1, PeriodUnit.WEEK)).toBe(1);
     expect(termMonthsOf(1, PeriodUnit.WEEK)).toBe(1);
+  });
+});
+
+describe('decliningPeriodInterest', () => {
+  it('prices one period on the principal still owed, not on the original loan', () => {
+    expect(decliningPeriodInterest(10_000_000, 1.2, PeriodUnit.MONTH)).toBe(120_000);
+    // After one installment of equal principal the next period is cheaper.
+    expect(decliningPeriodInterest(10_000_000 - 416_666.67, 1.2, PeriodUnit.MONTH)).toBe(115_000);
+  });
+
+  it('converts a yearly rate onto the monthly period through the same convention as flat interest', () => {
+    expect(decliningPeriodInterest(P, 18, PeriodUnit.YEAR)).toBe(15_000);
+    expect(decliningPeriodInterest(P, 1.5, PeriodUnit.MONTH)).toBe(15_000);
+  });
+
+  it('charges nothing once the principal is gone', () => {
+    expect(decliningPeriodInterest(0, 1.2, PeriodUnit.MONTH)).toBe(0);
+    expect(decliningPeriodInterest(-5, 1.2, PeriodUnit.MONTH)).toBe(0);
   });
 });
 

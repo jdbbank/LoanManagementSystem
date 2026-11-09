@@ -8,14 +8,21 @@ import { ResetTokenKind, UserRole } from '../entities/types';
 import { User } from '../entities/user.entity';
 import { AuthUser, authMiddleware, requireAuth, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/error';
+import { clearLoginLock } from '../services/account-lock.service';
+import { getAccountSecurityPolicy } from '../services/account-security-policy.service';
 import { avatarsByUser, deleteAvatar, readAvatar, replaceAvatar } from '../services/avatar.service';
 import { getAvatarPolicy } from '../services/avatar-policy.service';
 import { writeAudit } from '../services/audit.service';
 import { notifyPasswordResetLink, notifyUserCreated } from '../services/notification-events.service';
-import { assertPasswordAllowed, getPasswordPolicy } from '../services/password-policy.service';
-import { isWithinCooldown, issueResetToken, newLinkSecret } from '../services/password-reset.service';
+import { isWithinCooldown, issueResetToken, newLinkSecret, retireAllSecrets } from '../services/password-reset.service';
+import {
+  passwordExpiry,
+  passwordExpiryPayload,
+  prepareNewPassword,
+  writeNewPassword,
+} from '../services/user-password.service';
 import { asyncHandler } from '../utils/async-handler';
-import { conflict, forbidden, notFound, unprocessable } from '../utils/errors';
+import { conflict, forbidden, notFound, unprocessable, unauthorized } from '../utils/errors';
 import { readSingleFile } from '../utils/upload';
 
 const router = Router();
@@ -31,6 +38,11 @@ const publicUser = (u: User, hasAvatar = false) => ({
   isActive: u.isActive,
   hasAvatar,
   lastLoginAt: u.lastLoginAt,
+  // A security lock is not a disabled account, so the ADMIN list needs both facts apart: `isActive`
+  // stays ADMIN intent, these three say whether a rule fired and which one.
+  isLocked: u.lockedAt !== null,
+  lockedAt: u.lockedAt,
+  lockReason: u.lockReason,
   passwordChangedAt: u.passwordChangedAt,
   deletedAt: u.deletedAt,
   createdAt: u.createdAt,
@@ -49,6 +61,17 @@ async function loadUser(userId: string): Promise<User> {
   return user;
 }
 
+/**
+ * Which organisation an ADMIN may see and change.
+ *
+ * The actor's own token answers it rather than a lookup of the configured default: an account can
+ * only ever act inside the organisation it belongs to, so reading the scope from the caller is both
+ * the smaller query and the rule that survives the day a second tenant is added.
+ */
+function actorTenant(req: Request): string {
+  return (req.user as AuthUser).tenantId;
+}
+
 router.get(
   '/',
   requireRole(UserRole.ADMIN),
@@ -58,6 +81,7 @@ router.get(
     const includeDeleted = req.query.includeDeleted === 'true';
     const users = await em.find(User, {
       withDeleted: includeDeleted,
+      where: { tenantId: actorTenant(req) },
       order: { createdAt: 'ASC' },
     });
     const avatars = await avatarsByUser(em, users.map((u) => u.id));
@@ -82,26 +106,31 @@ router.post(
     const ds = getDataSource();
     const email = body.email?.trim() || null;
 
-    assertPasswordAllowed(await getPasswordPolicy(ds.manager), body.password);
+    // Nothing to repeat yet, so the reuse rule has no history to read — but the hash still goes into
+    // the history table below, or A -> B -> A would look like a first-time password.
+    const passwordHash = await prepareNewPassword(ds.manager, null, body.password);
 
-    // Soft-deleted rows still hold the unique index, so they must be part of the check.
+    const tenantId = actorTenant(req);
+    // Soft-deleted rows still hold the unique index, so they must be part of the check — and the index
+    // is per organisation, so a name that is free in another tenant is free here.
     const exists = await ds.getRepository(User).findOne({
       withDeleted: true,
-      where: email ? [{ username: body.username }, { email }] : { username: body.username },
+      where: email
+        ? [{ tenantId, username: body.username }, { tenantId, email }]
+        : { tenantId, username: body.username },
     });
     if (exists) {
-      res.status(409).json({ error: { message: 'Username or email already exists' } });
+      res.status(409).json({ error: { message: 'Username or email already exists in this organisation' } });
       return;
     }
     const user = ds.getRepository(User).create({
+      tenantId,
       username: body.username,
-      passwordHash: await bcrypt.hash(body.password, 10),
       fullName: body.fullName,
       email,
       role: body.role,
-      passwordChangedAt: new Date(),
     });
-    await ds.getRepository(User).save(user);
+    await writeNewPassword(ds.manager, user, passwordHash);
     await writeAudit(ds.manager, {
       action: 'USER_CREATED',
       userId: req.user!.id,
@@ -118,6 +147,123 @@ router.post(
       createdByName: req.user!.fullName,
     });
     res.status(201).json({ user: publicUser(user) });
+  }),
+);
+
+/**
+ * Self-service profile. These routes must stay above the `/:id` routes: Express matches in
+ * registration order, and `PATCH /:id` is ADMIN-only, so a later `/me` would be swallowed by it.
+ *
+ * `passwordExpiry` is derived from the live policy rather than stored, so the Profile page can warn
+ * before the login gate stops the person — the one place the rotation rule is visible in advance.
+ */
+router.get(
+  '/me',
+  asyncHandler(async (req, res) => {
+    const em = getDataSource().manager;
+    const user = await loadUser((req.user as AuthUser).id);
+    const avatar = await avatarsByUser(em, [user.id]);
+    res.json({
+      user: publicUser(user, avatar.has(user.id)),
+      passwordExpiry: passwordExpiryPayload(passwordExpiry(await getAccountSecurityPolicy(em), user)),
+    });
+  }),
+);
+
+/** Only the display name and the login mail are self-editable; role, status and username are not. */
+const updateProfileSchema = z
+  .object({
+    fullName: z.string().min(1).max(191).optional(),
+    email: z.string().email().max(191).nullish(),
+  })
+  .refine((body) => body.fullName !== undefined || body.email !== undefined, { message: 'Nothing to update' });
+
+router.patch(
+  '/me',
+  validateBody(updateProfileSchema),
+  asyncHandler(async (req, res) => {
+    const ds = getDataSource();
+    const user = await loadUser((req.user as AuthUser).id);
+    const body = req.body as z.infer<typeof updateProfileSchema>;
+    const changes: string[] = [];
+
+    if (body.fullName !== undefined && body.fullName.trim() !== user.fullName) {
+      changes.push(`name ${user.fullName} -> ${body.fullName.trim()}`);
+      user.fullName = body.fullName.trim();
+    }
+    if (body.email !== undefined) {
+      const email = body.email?.trim() || null;
+      if (email !== (user.email ?? null)) {
+        const taken = email
+          ? await ds.getRepository(User).findOne({ withDeleted: true, where: { tenantId: user.tenantId, email } })
+          : null;
+        if (taken) {
+          res.status(409).json({ error: { message: 'Email already belongs to another user' } });
+          return;
+        }
+        changes.push(`email ${user.email ?? '-'} -> ${email ?? '-'}`);
+        user.email = email;
+        user.isEmailVerified = false;
+      }
+    }
+    await ds.getRepository(User).save(user);
+    await writeAudit(ds.manager, {
+      action: 'USER_PROFILE_UPDATED',
+      userId: user.id,
+      reason: `Self-service profile change (${user.username}): ${changes.join(', ') || 'no field changed'}`,
+      ip: req.ip ?? null,
+      userAgent: req.headers['user-agent'] ?? null,
+    });
+    const avatar = await avatarsByUser(ds.manager, [user.id]);
+    res.json({ user: publicUser(user, avatar.has(user.id)) });
+  }),
+);
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: z.string().min(1).max(128),
+});
+
+/**
+ * Changing one's own password requires proving the old one. Writing `passwordChangedAt` makes
+ * authMiddleware reject every token issued before it, so all other sessions drop out.
+ */
+router.post(
+  '/me/password',
+  validateBody(changePasswordSchema),
+  asyncHandler(async (req, res) => {
+    const ds = getDataSource();
+    const user = await loadUser((req.user as AuthUser).id);
+    const { currentPassword, newPassword } = req.body as z.infer<typeof changePasswordSchema>;
+
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      await writeAudit(ds.manager, {
+        action: 'USER_PASSWORD_CHANGE_FAILED',
+        userId: user.id,
+        reason: `Incorrect current password for ${user.username}`,
+        ip: req.ip ?? null,
+        userAgent: req.headers['user-agent'] ?? null,
+      });
+      throw unauthorized('Current password is incorrect');
+    }
+
+    const passwordHash = await prepareNewPassword(ds.manager, user, newPassword);
+
+    await ds.transaction(async (em) => {
+      // A reset code issued before this change must not remain spendable.
+      await retireAllSecrets(em, user.id);
+      await writeNewPassword(em, user, passwordHash);
+      await writeAudit(em, {
+        action: 'USER_PASSWORD_CHANGED',
+        userId: user.id,
+        newStatus: user.role,
+        reason: `Password changed by ${user.username} after verifying the previous one`,
+        ip: req.ip ?? null,
+        userAgent: req.headers['user-agent'] ?? null,
+      });
+    });
+
+    res.json({ changed: true, message: 'Password updated — sign in again with the new password' });
   }),
 );
 
@@ -138,14 +284,17 @@ router.patch(
     const user = await loadUser(req.params.id);
     const body = req.body as z.infer<typeof updateUserSchema>;
 
-    if (body.password !== undefined) {
-      assertPasswordAllowed(await getPasswordPolicy(ds.manager), body.password);
-    }
+    // Prepared before any field is touched: a password the policy or the reuse rule rejects must not
+    // leave the other edits half-applied to the loaded entity.
+    const passwordHash =
+      body.password === undefined ? null : await prepareNewPassword(ds.manager, user, body.password);
     if (body.fullName !== undefined) user.fullName = body.fullName;
     if (body.email !== undefined) {
       const email = body.email?.trim() || null;
       if (email !== (user.email ?? null)) {
-        const taken = email ? await ds.getRepository(User).findOne({ withDeleted: true, where: { email } }) : null;
+        const taken = email
+          ? await ds.getRepository(User).findOne({ withDeleted: true, where: { tenantId: user.tenantId, email } })
+          : null;
         if (taken) {
           res.status(409).json({ error: { message: 'Email already belongs to another user' } });
           return;
@@ -157,15 +306,16 @@ router.patch(
     }
     if (body.role !== undefined) user.role = body.role;
     if (body.isActive !== undefined) user.isActive = body.isActive;
-    if (body.password !== undefined) {
-      user.passwordHash = await bcrypt.hash(body.password, 10);
-      user.passwordChangedAt = new Date();
+    if (passwordHash) {
+      // Saves the whole entity, so the field edits above leave with the new password.
+      await writeNewPassword(ds.manager, user, passwordHash);
+    } else {
+      await ds.getRepository(User).save(user);
     }
-    await ds.getRepository(User).save(user);
     await writeAudit(ds.manager, {
       action: 'USER_UPDATED',
       userId: req.user!.id,
-      reason: `Updated ${user.username}`,
+      reason: `Updated ${user.username}${passwordHash ? ', password replaced by ADMIN' : ''}`,
       previousStatus: null,
       newStatus: body.role ?? null,
       ip: req.ip ?? null,
@@ -369,6 +519,56 @@ async function sendResetLink(
 
   return { expiresAt: issued.row.expiresAt };
 }
+
+/**
+ * ADMIN-only unlock — the only way back into a locked account.
+ *
+ * The lock clears first and on its own. The emailed reset link that follows is a best effort, because
+ * an account with no address, or one that was sent a link moments ago, must not talk the unlock out of
+ * happening: the person is locked out either way, and ADMIN can still set a password directly.
+ */
+router.post(
+  '/:id/unlock',
+  requireRole(UserRole.ADMIN),
+  asyncHandler(async (req, res) => {
+    const actor = req.user as AuthUser;
+    const ds = getDataSource();
+    const user = await loadUser(req.params.id);
+    const unlockedAt = new Date();
+
+    await ds.transaction(async (em) => {
+      if (!(await clearLoginLock(em, user.id))) throw conflict('This account is not locked');
+      await writeAudit(em, {
+        action: 'USER_ACCOUNT_UNLOCKED',
+        userId: actor.id,
+        previousStatus: user.lockReason,
+        reason:
+          `Unlocked ${user.username}, locked since ${user.lockedAt?.toISOString() ?? 'unknown'} ` +
+          `for ${user.lockReason ?? 'no reason recorded'}`,
+        ip: req.ip ?? null,
+        userAgent: req.headers['user-agent'] ?? null,
+      });
+    });
+
+    let resetLink: { sent: boolean; reason?: string; expiresAt?: Date };
+    try {
+      const issued = await ds.transaction((em) =>
+        sendResetLink(em, actor, user, req.ip, req.headers['user-agent']),
+      );
+      resetLink = { sent: true, expiresAt: issued.expiresAt };
+    } catch (error) {
+      resetLink = { sent: false, reason: error instanceof Error ? error.message : 'Could not send a reset link' };
+    }
+
+    res.json({
+      unlocked: true,
+      unlockedAt,
+      username: user.username,
+      previousLockReason: user.lockReason,
+      resetLink,
+    });
+  }),
+);
 
 router.post(
   '/:id/send-reset-link',

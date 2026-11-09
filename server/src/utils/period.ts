@@ -50,6 +50,21 @@ export function flatInterestTotal(input: {
 }
 
 /**
+ * One repayment period of declining-balance interest: the principal still owed when the period
+ * starts, times the monthly rate. Never prorated by day — a mid-period prepayment re-prices the
+ * NEXT period only, which keeps the locked 1 month = 30 days convention free of day-level state.
+ */
+export function decliningPeriodInterest(
+  outstandingPrincipal: number,
+  ratePercent: number,
+  rateUnit: PeriodUnit,
+): number {
+  const base = round2(outstandingPrincipal);
+  if (base <= 0) return 0;
+  return round2(base * (ratePercentPerMonth(ratePercent, rateUnit) / 100));
+}
+
+/**
  * Split an amount into `count` equal shares; the last share absorbs the rounding remainder
  * so the shares always add back up to the booked amount.
  */

@@ -4,7 +4,7 @@
 // Like suite 05, every loan/request this suite touches is created by the suite and deleted in
 // `purge`, because suites 10/15 compare the seeded ledger against expected.json. The 21 seeded
 // loans are only used for read-only refusal paths (non-ACTIVE loans, existing credit balances).
-import { api as http, errorMessage, expected, rows, settle, statusCheck, check } from '../lib/harness.mjs';
+import { api as http, errorMessage, expected, payloadOf, rows, settle, statusCheck, check, withPinnedPolicies } from '../lib/harness.mjs';
 import {
   allocateComponents,
   billedInterestCents,
@@ -28,9 +28,17 @@ const outstandingOf = (loan) => ({
   PAST_PRINCIPAL: cent(loan.outstanding?.pastPrincipal ?? 0),
 });
 const sumMoney = (c) => COMPS.reduce((acc, k) => acc + Number(c[k] ?? 0), 0);
+const asText = (c) => COMPS.map((k) => `${k}=${fmt(c[k] ?? 0)}`).join(' ');
 const jwtId = (token) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).id;
 
 export default async function suite(ctx) {
+  // reset-db keeps system_config, so the payment policy is pinned to the shipped defaults for this
+  // suite and put back afterwards: with the job switched on by an earlier run, the live auto-debit
+  // timer would move money on the book while these cases are still counting it.
+  return withPinnedPolicies(ctx.api, ['payment'], () => run(ctx));
+}
+
+async function run(ctx) {
   const { tokens, conn, api: adminApi } = ctx;
   // ctx.api fills in the admin token when none is given; a case that means "unauthenticated"
   // must pass token:null explicitly and bypass that default or it silently tests as admin.
@@ -146,6 +154,52 @@ export default async function suite(ctx) {
   const postTx = (id, token = tokens.admin) => api('POST', `/api/transactions/${id}/post`, { token });
   const detail = (id, token = tokens.admin) => api('GET', `/api/payment-requests/${id}`, { token });
 
+  // The email rows a money event queued in its own transaction. Reading them here (not after the
+  // dispatcher) is what proves "posted and announced commit together"; transport=log means the mail
+  // never leaves the machine. `enqueueNotification` seals every payload, so the fields are opened in
+  // JS: JSON_EXTRACT on `sealed:v1:` text is not valid JSON and returns NULL for all of them.
+  const OUTBOX_PAYLOAD_KEYS = [
+    'requestNo',
+    'loanCode',
+    'amount',
+    'purposeLabel',
+    'reason',
+    'remaining',
+    'allocation',
+    'components',
+    'creditBalance',
+    'instalment',
+  ];
+  const withPayload = (row) => {
+    const payload = payloadOf(row);
+    return {
+      ...row,
+      ...Object.fromEntries(OUTBOX_PAYLOAD_KEYS.map((key) => [key, payload[key] ?? null])),
+      payloadStatus: payload.status ?? null,
+    };
+  };
+  const outboxRows = (loanId, type) =>
+    rows(
+      conn,
+      'SELECT recipientEmail, status, payload FROM notification_outbox WHERE loanId = ? AND type = ? ORDER BY createdAt',
+      [loanId, type],
+    ).then((rs) => rs.map(withPayload));
+
+  /** formatAmount() renders "12,345.67 LAK"; compared as bare digits so the suite stays locale-free. */
+  const moneyOf = (value) => String(value ?? '').replace(/[^\d.]/g, '');
+
+  /** collectionAudience() server-side = ผู้กู้ + staff ที่ role ยังมีอำนาจและ active และมีอีเมลจริง */
+  const approverEmails = (
+    await rows(
+      conn,
+      "SELECT email FROM users WHERE role IN ('CHECKER','HEAD_APPROVER','ADMIN') AND isActive = 1 AND email IS NOT NULL AND email <> '' ORDER BY email",
+      [],
+    )
+  ).map((r) => r.email);
+  const borrowerEmail = async (loanId) =>
+    (await rows(conn, 'SELECT c.email FROM customers c JOIN loans l ON l.customerId = c.id WHERE l.id = ?', [loanId]))[0]?.email ?? null;
+  const reachesAudience = (mail, audience) => audience.every((email) => mail.some((r) => String(r.recipientEmail).toLowerCase() === String(email).toLowerCase()));
+
   const findStep = async (txId, token) => {
     const pending = await api('GET', '/api/approvals/pending?limit=100', { token });
     const item = (pending.json.data ?? []).find((i) => i.subjectId === txId);
@@ -205,6 +259,62 @@ export default async function suite(ctx) {
       pass: lineRows.length === nonzero.length && nonzero.every((c) => cent(lineRows.find((r) => r.component === c)?.amount ?? 0) === -exp.allocation[c]),
     });
     return { made, approved, posted, request, tx, exp, after };
+  };
+
+  /**
+   * Deposit to credit — the channel the collection gate points at when cash is above what has
+   * arrived. It runs the same maker -> checker -> post path as a payment, but buys no debt: every
+   * allocation stays zero and the whole amount lands as customer credit.
+   */
+  const depositAndVerify = async (loan, { cash, label }) => {
+    const state = states.get(loan.id);
+    const made = await createReq({ loanId: loan.id, cashAmount: cash, purpose: 'DEPOSIT_TO_CREDIT' }, tokens.op1);
+    if (made.status !== 201) throw new Error(`${label}: deposit create failed ${made.status} ${errorMessage(made)}`);
+    const request = made.json.data.request;
+    check(CAT, `${label}: สร้างคำขอ purpose DEPOSIT_TO_CREDIT — proposed allocation เป็น 0 ทุกส่วน (ไม่ตัดหนี้ใด ๆ)`, {
+      input: 'POST /api/payment-requests purpose=DEPOSIT_TO_CREDIT',
+      expected: `purpose DEPOSIT_TO_CREDIT ${COMPS.map((c) => `${c}=0.00`).join(' ')}`,
+      actual: `${request.purpose} ${COMPS.map((c) => `${c}=${fmt(cent(made.json.data.proposed?.[c] ?? -1))}`).join(' ')}`,
+      pass: request.purpose === 'DEPOSIT_TO_CREDIT' && COMPS.every((c) => cent(made.json.data.proposed?.[c] ?? -1) === 0),
+    });
+    const approved = await approveReq(request.id, {}, tokens.checker1);
+    if (approved.status !== 200) throw new Error(`${label}: deposit approve failed ${approved.status} ${errorMessage(approved)}`);
+    const tx = approved.json.data.transaction;
+    check(CAT, `${label}: อนุมัติ deposit -> transaction PAYMENT สถานะ APPROVED ยอด = เงินที่ฝาก`, {
+      input: 'POST /api/payment-requests/:id/approve',
+      expected: { type: 'PAYMENT', status: 'APPROVED', amount: fmt(toCents(cash)) },
+      actual: { type: tx.transactionType, status: tx.status, amount: fmt(toCents(tx.amount)) },
+      pass: tx.transactionType === 'PAYMENT' && tx.status === 'APPROVED' && sameMoney(tx.amount, cash),
+    });
+    const posted = await postTx(tx.id, tokens.admin);
+    if (posted.status !== 200) throw new Error(`${label}: deposit post failed ${posted.status} ${errorMessage(posted)}`);
+    const data = posted.json.data;
+    const after = await loanView(loan.id);
+    check(CAT, `${label}: โพสต์ deposit -> allocation 0 ทุกส่วน, excess = ยอดทั้งก้อน, หนี้คงค้างไม่ขยับ`, {
+      input: `POST /api/transactions/${tx.id}/post`,
+      expected: `${COMPS.map((c) => `${c}=0.00`).join(' ')} excess ${fmt(toCents(cash))} outstanding ${asText(state.components)}`,
+      actual: `${COMPS.map((c) => `${c}=${fmt(cent(data.allocation?.[c] ?? -1))}`).join(' ')} excess ${fmt(cent(data.excess ?? -1))} outstanding ${asText(outstandingOf(after ?? {}))}`,
+      pass:
+        COMPS.every((c) => cent(data.allocation?.[c] ?? -1) === 0) &&
+        cent(data.excess ?? -1) === toCents(cash) &&
+        COMPS.every((c) => outstandingOf(after ?? {})[c] === state.components[c]) &&
+        after?.status === 'ACTIVE',
+    });
+    const depositMail = (await outboxRows(loan.id, 'CREDIT_DEPOSITED')).filter((r) => moneyOf(r.amount) === moneyOf(cash));
+    const depositor = await borrowerEmail(loan.id);
+    check(CAT, `${label}: โพสต์ deposit แล้วเกิดเมล CREDIT_DEPOSITED บอกยอดที่เข้าบัญชีเครดิต`, {
+      input: `notification_outbox type=CREDIT_DEPOSITED ยอด ${cash} ของ loan นี้`,
+      expected: '>= 1 แถวถึงเฉพาะผู้กู้, amount ตรงยอดฝาก, creditBalance + loanCode ไม่ว่าง',
+      actual: JSON.stringify(depositMail.map((r) => [r.recipientEmail, r.amount, r.creditBalance, r.loanCode])),
+      pass:
+        depositMail.length >= 1 &&
+        depositMail.every((r) => r.recipientEmail === depositor) &&
+        !!depositMail[0].creditBalance &&
+        !!depositMail[0].loanCode &&
+        moneyOf(depositMail[0].amount) === moneyOf(cash),
+      note: 'เงินที่ฝากยังไม่ตัดหนี้ จึงเป็นเมลแจ้งเติมเครดิต ไม่ใช่ใบเสร็จชำระหนี้ และไม่มีสำเนาถึงผู้มีอำนาจ',
+    });
+    return { made, approved, posted, request, tx };
   };
 
   try {
@@ -666,12 +776,79 @@ export default async function suite(ctx) {
       note: 'ตรวจรายละเอียด payload/ใบเสร็จจริงใน suite 11',
     });
 
+    // D2 — the three payment-request emails, read from the outbox the same transactions wrote
+    const prSubmitted = await outboxRows(probe.id, 'PAYMENT_REQUEST_SUBMITTED');
+    const prApproved = await outboxRows(probe.id, 'PAYMENT_REQUEST_APPROVED');
+    const prRejected = await outboxRows(probe.id, 'PAYMENT_REQUEST_REJECTED');
+    const probeBorrower = await borrowerEmail(probe.id);
+    const submittedNos = [reqA.requestNo, selfMade.json.data.request.requestNo, stillPending.json.data.request.requestNo, resubReq.requestNo];
+    const submitMail = prSubmitted.filter((r) => r.requestNo === reqA.requestNo);
+    const approveMail = prApproved.filter((r) => r.requestNo === reqA.requestNo);
+    const rejectMail = prRejected.filter((r) => r.requestNo === selfMade.json.data.request.requestNo);
+    check(CAT, 'ยื่นคำขอชำระทุกครั้งที่สร้างสำเร็จ เกิดเมล PAYMENT_REQUEST_SUBMITTED', {
+      input: 'notification_outbox type=PAYMENT_REQUEST_SUBMITTED ของ loan นี้ แยกตาม requestNo',
+      expected: `ครบทั้ง ${submittedNos.length} เลขคำขอ: ${submittedNos.join(', ')}`,
+      actual: [...new Set(prSubmitted.map((r) => r.requestNo))].join(', '),
+      pass: submittedNos.every((no) => prSubmitted.some((r) => r.requestNo === no)),
+    });
+    check(CAT, 'เมลคำขอชำระถึงผู้กู้ +ผู้มีอำนาจทุกคน หนึ่งฉบับต่อกล่องจดหมาย', {
+      input: `recipientEmail ของ SUBMITTED ${reqA.requestNo}`,
+      expected: `ผู้กู้ ${probeBorrower} และผู้มีอำนาจ ${approverEmails.length} ที่อยู่`,
+      actual: `${submitMail.length} แถว → ${submitMail.map((r) => r.recipientEmail).join(', ')}`,
+      pass:
+        submitMail.length > 0 &&
+        reachesAudience(submitMail, [probeBorrower, ...approverEmails]) &&
+        submitMail.length === new Set(submitMail.map((r) => String(r.recipientEmail).toLowerCase())).size,
+      note: 'คำขอชำระต้องผู้มีอำนาจสั่ง จึงคัดผู้รับคนละแบบกับใบเสร็จเงินเข้า (ถึงเฉพาะผู้กู้ — ดู PAYMENT_POSTED ด้านบน)',
+    });
+    check(CAT, 'payload ของ SUBMITTED มียอด เลขสัญญา ประเภทคำขอ และสถานะครบ', {
+      input: `payload SUBMITTED ${reqA.requestNo}`,
+      expected: `amount 12,345.67 LAK, loanCode ${probe.loanNumber}, purposeLabel + status ไม่ใช่ค่าว่าง`,
+      actual: JSON.stringify(submitMail[0] ?? null),
+      pass:
+        submitMail.length >= 1 &&
+        submitMail.every(
+          (r) => moneyOf(r.amount) === '12345.67' && r.loanCode === probe.loanNumber && !!r.purposeLabel && !!r.payloadStatus,
+        ),
+    });
+    check(CAT, 'checker อนุมัติแล้วเกิดเมล PAYMENT_REQUEST_APPROVED ยอดตรงกับเงินที่ระบบจะตัดใช้', {
+      input: `payload APPROVED ${reqA.requestNo}`,
+      expected: 'มีแถวถึงผู้กู้ + ผู้มีอำนาจ, amount 12,345.67 LAK, allocation/remaining ไม่ว่าง',
+      actual: JSON.stringify(approveMail.map((r) => [r.recipientEmail, r.amount, r.allocation, r.remaining])),
+      pass:
+        approveMail.length > 0 &&
+        moneyOf(approveMail[0].amount) === '12345.67' &&
+        !!approveMail[0].allocation &&
+        !!approveMail[0].remaining &&
+        reachesAudience(approveMail, [probeBorrower, ...approverEmails]),
+    });
+    check(CAT, 'ปฏิเสธแล้วเกิดเมล PAYMENT_REQUEST_REJECTED พร้อมเหตุผลที่ผู้ตรวจพิมพ์ไป', {
+      input: `payload REJECTED ${selfMade.json.data.request.requestNo}`,
+      expected: 'มีแถวถึงผู้กู้ + ผู้มีอำนาจ, reason ตรงข้อความที่ส่ง, amount 9,000 LAK',
+      actual: JSON.stringify(rejectMail.map((r) => [r.recipientEmail, r.amount, r.reason])),
+      pass:
+        rejectMail.length > 0 &&
+        rejectMail.every((r) => r.reason === 'Amount does not match the bank slip') &&
+        moneyOf(rejectMail[0].amount) === '9000' &&
+        reachesAudience(rejectMail, [probeBorrower, ...approverEmails]),
+    });
+    check(CAT, 'คำขอที่ยังไม่มีใครตัดสิน ไม่มีเมล APPROVED/REJECTED (เมลมาพร้อมการตัดสินใจเท่านั้น)', {
+      input: `requestNo ของคำขอที่ค้าง PENDING: ${stillPending.json.data.request.requestNo}`,
+      expected: '0 แถวทั้ง PAYMENT_REQUEST_APPROVED และ PAYMENT_REQUEST_REJECTED',
+      actual: `${prApproved.filter((r) => r.requestNo === stillPending.json.data.request.requestNo).length} + ${prRejected.filter((r) => r.requestNo === stillPending.json.data.request.requestNo).length} แถว`,
+      pass:
+        prApproved.every((r) => r.requestNo !== stillPending.json.data.request.requestNo) &&
+        prRejected.every((r) => r.requestNo !== stillPending.json.data.request.requestNo),
+    });
+
     // E2 — loan with a real penalty: locked order must clear penalty first
     const pen = await newLoan({
       customerId: C6,
       productCode: 'TST-FLAT-M12',
       principal: 2000000,
-      disbursedAt: '2026-01-05T09:00:00.000Z',
+      // disbursed a full term ago on purpose: this block settles the loan in three goes, and the
+      // collection gate only accepts instalments that have actually arrived.
+      disbursedAt: '2025-01-05T09:00:00.000Z',
       label: 'pen-loan',
     });
     const penCreate = await api('POST', '/api/transactions/penalties', {
@@ -704,6 +881,20 @@ export default async function suite(ctx) {
       actual: COMPS.map((c) => fmt(outstandingOf(penLoan)[c])).join(' '),
       pass: COMPS.every((c) => outstandingOf(penLoan)[c] === states.get(pen.id).components[c]),
     });
+    const penaltyMail = await outboxRows(pen.id, 'PENALTY_POSTED');
+    const penAudience = [await borrowerEmail(pen.id), ...approverEmails];
+    check(CAT, 'โพสต์ค่าปรับแล้วเกิดเมล PENALTY_POSTED ถึงผู้กู้ +ผู้มีอำนาจ ครั้งละหนึ่งฉบับต่อกล่องจดหมาย', {
+      input: 'notification_outbox type=PENALTY_POSTED ของ pen-loan',
+      expected: `${penAudience.length} แถว, amount 50,000 LAK, reason ตรงกับที่เรียกเก็บ, remaining ไม่ใช่ค่าว่าง`,
+      actual: JSON.stringify(penaltyMail.map((r) => [r.recipientEmail, r.amount, r.reason, r.remaining])),
+      pass:
+        penaltyMail.length === penAudience.length &&
+        moneyOf(penaltyMail[0]?.amount) === '50000' &&
+        penaltyMail[0]?.reason === 'Late instalment (suite 06 order test)' &&
+        !!penaltyMail[0]?.remaining &&
+        reachesAudience(penaltyMail, penAudience),
+      note: 'ตอน create และตอน approve ยังไม่มีแถว — เมลถูกคิวพร้อมโพสต์เท่านั้น เพราะค่าปรับที่ยังไม่โพสต์ยังไม่ถูกเรียกเก็บจริง',
+    });
     await payAndVerify(pen, { cash: 60000, label: 'order-1 (ค่าปรับ 50,000 ต้องถูกตัดก่อนดอกเบี้ย)' });
     await payAndVerify(pen, { cash: 350000, label: 'order-2 (ดอกเบี้ยที่เหลือจนหมด)' });
     const penMid = await loanView(pen.id);
@@ -724,18 +915,58 @@ export default async function suite(ctx) {
       pass: penRest.after.status === 'CLOSED' && sameMoney(penRest.after.outstanding.total, 0),
     });
 
-    // E3 — overpayment -> customer credit, loan CLOSED while credit remains
+    // E3 — the collection gate refuses cash above the instalments that have arrived and points at the
+    // deposit channel; the deposited 75,000 then stays as customer credit while the loan closes (LOCKED 6).
     const over = await newLoan({
       customerId: C7,
       productCode: 'TST-FLAT-M12',
       principal: 1000000,
-      disbursedAt: '2026-01-05T09:00:00.000Z',
+      disbursedAt: '2025-01-05T09:00:00.000Z',
       label: 'over-loan',
     });
     const overState = states.get(over.id);
-    const overRes = await payAndVerify(over, { cash: toLak(overState.components.PENALTY + overState.components.PAST_INTEREST + overState.components.PAST_PRINCIPAL) + 75000, label: 'overpay (+75,000)' });
+    const overOwed = totalOf(overState.components);
+    const overPayable = (await api('GET', `/api/loans/${over.id}/payable-now`)).json?.data ?? {};
+    check(CAT, 'payable-now หลังกู้ครบทั้งสัญญา: maxPayable = dueToPay = หนี้ทั้งก้อนใน ledger', {
+      input: 'GET /api/loans/:id/payable-now',
+      expected: fmt(overOwed),
+      actual: `maxPayable ${fmt(cent(overPayable.maxPayable ?? -1))} dueToPay ${fmt(cent(overPayable.dueToPay ?? -1))} ledger ${fmt(cent(overPayable.ledgerOutstanding ?? -1))}`,
+      pass: [overPayable.maxPayable, overPayable.dueToPay, overPayable.ledgerOutstanding].every((v) => cent(v ?? -1) === overOwed),
+    });
+    const gatedAsk = overOwed + toCents(75000);
+    const gated = await createReq({ loanId: over.id, cashAmount: toLak(gatedAsk) }, tokens.op1);
+    statusCheck(CAT, 'ชำระเกินยอดที่ถึงกำหนด: 422 พร้อมชี้ช่อง deposit to credit', gated, 422, {
+      input: `cash ${fmt(gatedAsk)} ทั้งที่เก็บได้ ${fmt(overOwed)}`,
+      messageIncludes: 'Bring the rest as a deposit to credit',
+    });
+    const gateMsg = errorMessage(gated);
+    check(CAT, 'ข้อความ 422 บอกตัวเลขที่เก็บได้จริงและอ้างถึง auto-debit เพื่อให้ staff อธิบายลูกค้าได้', {
+      input: 'POST /api/payment-requests เกิน due scope',
+      expected: `Only ${fmt(overOwed)} LAK is due ... auto-debits it when the instalment falls due`,
+      actual: gateMsg.slice(0, 200),
+      pass: gateMsg.startsWith(`Only ${fmt(overOwed)} LAK is due on loan`) && /auto-debits it when the instalment falls due/.test(gateMsg),
+    });
+    const gateDetails = gated.json?.error?.details ?? {};
+    check(CAT, '422 มี details ให้ UI ยืนยันตัวเลข (maxPayable/requested/duePeriods/nextPendingPeriod)', {
+      input: 'error.details ของคำขอที่ถูก gate',
+      expected: `maxPayable ${fmt(overOwed)}, requested ${fmt(gatedAsk)}, duePeriods 12, nextPendingPeriod null (ทั้งสัญญาถึงกำหนดแล้ว)`,
+      actual: `maxPayable ${fmt(cent(gateDetails.maxPayable ?? -1))} requested ${fmt(cent(gateDetails.requested ?? -1))} periods ${gateDetails.duePeriods?.length} next ${JSON.stringify(gateDetails.nextPendingPeriod)}`,
+      pass:
+        cent(gateDetails.maxPayable ?? -1) === overOwed &&
+        cent(gateDetails.requested ?? -1) === gatedAsk &&
+        gateDetails.duePeriods?.length === 12 &&
+        gateDetails.nextPendingPeriod === null,
+    });
+    const gatedTx = await rows(conn, 'SELECT COUNT(*) n FROM payment_requests WHERE loanId = ?', [over.id]);
+    check(CAT, 'คำขอที่ถูก gate ต้องไม่เหลือแถวใน DB (rollback ทั้ง transaction) — กติกาใหม่ไม่สร้างหนี้ค้างครึ่งตัว', {
+      input: 'payment_requests ของ over-loan หลัง 422',
+      expected: 0,
+      actual: gatedTx[0].n,
+      pass: gatedTx[0].n === 0,
+    });
+    await depositAndVerify(over, { cash: 75000, label: 'deposit 75,000 (ช่องทางที่gate ชี้)' });
     const creditRow = (await rows(conn, 'SELECT balance FROM customer_credits WHERE customerId = ?', [C7]))[0];
-    check(CAT, 'เงินที่ชำระเกินกลายเป็น credit ของลูกค้า 75,000 (LOCKED section 6)', {
+    check(CAT, 'เงินที่ฝากไว้กลายเป็น credit ของลูกค้า 75,000 (LOCKED section 6)', {
       input: 'customer_credits.balance',
       expected: '75000.00',
       actual: creditRow ? String(creditRow.balance) : 'no row',
@@ -755,11 +986,21 @@ export default async function suite(ctx) {
       actual: JSON.stringify(creditAudit.map((r) => r.action)),
       pass: creditAudit.length === 1 && creditAudit[0].action === 'CREDIT_ACCRUED',
     });
-    check(CAT, 'loan ที่ปิดด้วยเงินเกิน: สถานะ CLOSED แต่ยังมียอด credit ค้าง (ไม่ถูกนำไปปิดหนี้ loan อื่นอัตโนมัติ)', {
-      input: 'post-overpayment loan',
-      expected: { status: 'CLOSED', excess: '75000.00' },
-      actual: { status: overRes.after.status, excess: String(overRes.posted.json.data.excess) },
-      pass: overRes.after.status === 'CLOSED' && sameMoney(overRes.posted.json.data.excess, 75000),
+    const overRes = await payAndVerify(over, { cash: toLak(overOwed), label: 'payoff พอดีทุกส่วน (เงิน 75,000 ที่ฝากไว้ยังเป็น credit)' });
+    const creditLeft = (await rows(conn, 'SELECT balance FROM customer_credits WHERE customerId = ?', [C7]))[0];
+    check(CAT, 'loan ที่ปิดพอดี: สถานะ CLOSED และยังมียอด credit ค้าง (ไม่ถูกนำไปปิดหนี้ loan อื่นอัตโนมัติ)', {
+      input: 'post-payoff loan + customer_credits',
+      expected: { status: 'CLOSED', outstanding: '0.00', credit: '75000.00' },
+      actual: {
+        status: overRes.after.status,
+        outstanding: overRes.after.outstanding.total,
+        credit: String(creditLeft?.balance ?? 'no row'),
+      },
+      pass:
+        overRes.after.status === 'CLOSED' &&
+        sameMoney(overRes.after.outstanding.total, 0) &&
+        sameMoney(overRes.posted.json.data.excess, 0) &&
+        sameMoney(creditLeft?.balance ?? -1, 75000),
     });
 
     // E4 — pay fully with credit only (cash 0). Target loan uses the zero-interest product so its
@@ -771,7 +1012,8 @@ export default async function suite(ctx) {
       disbursedAt: '2026-01-05T09:00:00.000Z',
       label: 'credit-loan',
     });
-    // create credit on C5 through an overpayment on a second loan of the same customer
+    // bring credit to C5 the way the collection gate intends: a deposit on a second loan of the same
+    // customer. It buys no debt, so the source loan stays exactly where the oracle put it.
     const cred2 = await newLoan({
       customerId: C5,
       productCode: 'TST-FLAT-M6',
@@ -779,17 +1021,18 @@ export default async function suite(ctx) {
       disbursedAt: '2026-01-05T09:00:00.000Z',
       label: 'credit-source-loan',
     });
-    const c2s = states.get(cred2.id);
-    await payAndVerify(cred2, { cash: toLak(totalOf(c2s.components)) + 120000, label: 'credit-source overpay (+120,000)' });
+    await depositAndVerify(cred2, { cash: 120000, label: 'credit-source deposit (+120,000)' });
     const avail = (await rows(conn, 'SELECT balance FROM customer_credits WHERE customerId = ?', [C5]))[0]?.balance;
-    check(CAT, 'ลูกค้า C5 มี credit จากการชำระเกินของ loan แรก 120,000', {
+    check(CAT, 'ลูกค้า C5 มี credit จากการฝากเข้า credit ของ loan แรก 120,000', {
       input: 'customer_credits.balance for C5',
       expected: '120000.00',
       actual: String(avail),
       pass: sameMoney(avail, 120000),
     });
-    statusCheck(CAT, 'ขอใช้ credit เกินยอดที่มี: 422', await createReq({ loanId: cred.id, cashAmount: 0, creditToApply: 200000 }, tokens.op1), 422, {
-      input: 'creditToApply 200,000 while 120,000 available',
+    // the due-scope gate is checked before the credit balance, so this probe asks for less than the
+    // source loan owes (332,400) and more than the customer holds (120,000)
+    statusCheck(CAT, 'ขอใช้ credit เกินยอดที่มี: 422', await createReq({ loanId: cred2.id, cashAmount: 0, creditToApply: 200000 }, tokens.op1), 422, {
+      input: 'creditToApply 200,000 บนหนี้ 332,400 ขณะที่ credit คงเหลือ 120,000',
       messageIncludes: 'Insufficient customer credit: available 120000, requested 200000',
     });
     const credFull = states.get(cred.id);
@@ -880,7 +1123,7 @@ export default async function suite(ctx) {
       customerId: C6,
       productCode: 'TST-FLAT-M12',
       principal: 333333.33,
-      disbursedAt: '2026-01-05T09:00:00.000Z',
+      disbursedAt: '2025-01-05T09:00:00.000Z',
       label: 'odd-loan',
     });
     const os = states.get(odd.id);

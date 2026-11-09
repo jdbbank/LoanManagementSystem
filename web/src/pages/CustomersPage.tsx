@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -21,9 +22,10 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { formatLak, type CustomerRow } from '../api/types';
+import { formatLak, type CustomerRow, type Loan } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { canCreate } from '../auth/roles';
+import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 import StatusChip from '../components/StatusChip';
 import CustomPagination from '../components/CustomPagination';
@@ -40,8 +42,12 @@ interface NewCustomer {
 
 const EMPTY: NewCustomer = { fullName: '', phone: '', email: '', nationalId: '', address: '' };
 
+function fmtDay(value: string | null, locale: string): string {
+  return value ? new Date(value).toLocaleDateString(locale, { dateStyle: 'medium' }) : '—';
+}
+
 export default function CustomersPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -56,6 +62,7 @@ export default function CustomersPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<NewCustomer>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [historyOf, setHistoryOf] = useState<CustomerRow | null>(null);
 
   const { data } = useQuery({
     queryKey: ['customers', 'table', debounced, page, rowsPerPage],
@@ -65,6 +72,15 @@ export default function CustomersPage() {
           params: { search: debounced || undefined, page: page + 1, limit: rowsPerPage },
         })
         .then((r) => r.data),
+  });
+
+  const { data: historyLoans, isLoading: historyLoading } = useQuery({
+    queryKey: ['loans', 'byCustomer', historyOf?.id],
+    enabled: Boolean(historyOf),
+    queryFn: () =>
+      api
+        .get<{ data: Loan[] }>('/loans', { params: { customerId: historyOf?.id, limit: 100 } })
+        .then((r) => r.data.data),
   });
 
   const createMutation = useMutation({
@@ -130,6 +146,7 @@ export default function CustomersPage() {
                   <TableCell>{t('customers.fullName')}</TableCell>
                   <TableCell>{t('customers.phone')}</TableCell>
                   <TableCell>{t('customers.nationalId')}</TableCell>
+                  <TableCell>{t('customers.products')}</TableCell>
                   <TableCell align="right">{t('customers.loans')}</TableCell>
                   <TableCell align="right">{t('customers.creditBalance')}</TableCell>
                   <TableCell>{t('customers.kyc')}</TableCell>
@@ -146,6 +163,29 @@ export default function CustomersPage() {
                     <TableCell sx={{ fontWeight: 600 }}>{c.fullName}</TableCell>
                     <TableCell>{c.phone ?? '—'}</TableCell>
                     <TableCell>{c.nationalId ?? '—'}</TableCell>
+                    <TableCell>
+                      {c.borrowings.length === 0 ? (
+                        '—'
+                      ) : (
+                        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                          {c.borrowings.map((b) => (
+                            <Chip
+                              key={b.productId}
+                              size="small"
+                              label={`${b.productName}${b.loanCount > 1 ? ` ×${b.loanCount}` : ''}`}
+                              color={b.activeCount > 0 ? 'primary' : 'default'}
+                              variant={b.activeCount > 0 ? 'filled' : 'outlined'}
+                              title={t('customers.borrowingTooltip', {
+                                active: b.activeCount,
+                                total: b.loanCount,
+                                outstanding: formatLak(b.outstanding),
+                              })}
+                              onClick={() => setHistoryOf(c)}
+                            />
+                          ))}
+                        </Stack>
+                      )}
+                    </TableCell>
                     <TableCell align="right">{c.loanCount}</TableCell>
                     <TableCell align="right">{formatLak(c.creditBalance)}</TableCell>
                     <TableCell>
@@ -157,11 +197,7 @@ export default function CustomersPage() {
                   </TableRow>
                 ))}
                 {data && data.customers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} align="center">
-                      {t('customers.noCustomers')}
-                    </TableCell>
-                  </TableRow>
+                  <EmptyState colSpan={8} message={t('customers.noCustomers')} />
                 )}
               </TableBody>
             </Table>
@@ -227,6 +263,50 @@ export default function CustomersPage() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      <Dialog open={Boolean(historyOf)} onClose={() => setHistoryOf(null)} fullWidth maxWidth="md">
+        <DialogTitle>{t('customers.loanHistory', { name: historyOf?.fullName ?? '' })}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t('loans.number')}</TableCell>
+                  <TableCell>{t('loans.product')}</TableCell>
+                  <TableCell>{t('common.status')}</TableCell>
+                  <TableCell align="right">{t('loans.principal')}</TableCell>
+                  <TableCell align="right">{t('loans.outstanding')}</TableCell>
+                  <TableCell>{t('customers.disbursed')}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(historyLoans ?? []).map((loan) => (
+                  <TableRow key={loan.id} hover>
+                    <TableCell>
+                      <Link to={`/loans/${loan.id}`} style={{ fontWeight: 600 }}>
+                        {loan.loanNumber}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{loan.product?.name ?? '—'}</TableCell>
+                    <TableCell>
+                      <StatusChip status={loan.status} />
+                    </TableCell>
+                    <TableCell align="right">{formatLak(loan.principalAmount)}</TableCell>
+                    <TableCell align="right">{formatLak(loan.currentOutstanding)}</TableCell>
+                    <TableCell>{fmtDay(loan.disbursedAt, i18n.language)}</TableCell>
+                  </TableRow>
+                ))}
+                {!historyLoading && (historyLoans?.length ?? 0) === 0 && (
+                  <EmptyState colSpan={6} message={t('loans.noLoans')} />
+                )}
+              </TableBody>
+            </Table>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryOf(null)}>{t('common.close')}</Button>
+        </DialogActions>
       </Dialog>
     </Stack>
   );

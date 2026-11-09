@@ -45,8 +45,19 @@ export const DEFAULT_KYC_POLICY: KycPolicy = {
 
 type FieldKind = 'number' | 'boolean' | 'csv' | 'docTypes';
 
+interface KycConfigKey {
+  key: string;
+  kind: FieldKind;
+  description: string;
+  /**
+   * A number row of 0 otherwise means "no value stored" (csv/docTypes rows keep 0 in the shared
+   * numeric column), so it is ignored on read. Set this only where 0 is a real setting.
+   */
+  zeroIsValue?: boolean;
+}
+
 /** Single registry: config key, storage kind and description per policy field. */
-const KYC_CONFIG_KEYS: Record<keyof KycPolicy, { key: string; kind: FieldKind; description: string }> = {
+const KYC_CONFIG_KEYS: Record<keyof KycPolicy, KycConfigKey> = {
   maxFileSizeKb: {
     key: 'kyc.upload.maxFileSizeKb',
     kind: 'number',
@@ -96,6 +107,7 @@ const KYC_CONFIG_KEYS: Record<keyof KycPolicy, { key: string; kind: FieldKind; d
     key: 'kyc.expiryWarningDays',
     kind: 'number',
     description: 'Warn in the UI when a document expires within this many days',
+    zeroIsValue: true,
   },
   maxTotalBytesPerCustomer: {
     key: 'kyc.maxTotalBytesPerCustomer',
@@ -128,7 +140,8 @@ function overlay(defaults: KycPolicy, rows: Map<string, ConfigRow>): KycPolicy {
     const kind = KYC_CONFIG_KEYS[field].kind;
     if (kind === 'number') {
       const n = Number(row.value);
-      if (Number.isFinite(n) && n > 0) (policy[field] as number) = n;
+      const zeroAccepted = KYC_CONFIG_KEYS[field].zeroIsValue === true;
+      if (Number.isFinite(n) && (n > 0 || (n === 0 && zeroAccepted))) (policy[field] as number) = n;
     } else if (kind === 'boolean') {
       (policy[field] as boolean) = Number(row.value) === 1;
     } else if (kind === 'csv') {

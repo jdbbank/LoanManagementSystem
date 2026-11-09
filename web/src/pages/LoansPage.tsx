@@ -8,6 +8,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
@@ -25,8 +26,12 @@ import { api, unwrap } from '../api/client';
 import {
   formatLak,
   PERIOD_UNITS,
+  DISBURSEMENT_CHANNELS,
+  DisbursementChannel,
+  InterestMethod,
   KycStatus,
   PeriodUnit,
+  type CustomerBankAccountsView,
   type CustomerRow,
   type KycConfig,
   type Loan,
@@ -34,9 +39,11 @@ import {
   type LoanProduct,
   type Pagination as Pag,
 } from '../api/types';
-import { flatInterestTotal } from '../utils/period';
+import { interestMethodName } from '../utils/interest';
+import { decliningInterestPreview, flatInterestTotal } from '../utils/period';
 import { useAuth } from '../auth/AuthContext';
 import { OPERATOR_ROLES } from '../auth/roles';
+import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 import StatusChip from '../components/StatusChip';
 import CustomPagination from '../components/CustomPagination';
@@ -62,6 +69,9 @@ export default function LoansPage() {
   const [termValue, setTermValue] = useState('');
   const [termUnit, setTermUnit] = useState<PeriodUnit>(PeriodUnit.MONTH);
   const [note, setNote] = useState('');
+  const [channel, setChannel] = useState<'' | DisbursementChannel>('');
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [reference, setReference] = useState('');
 
   const canCreate = user ? OPERATOR_ROLES.includes(user.role) : false;
 
@@ -96,6 +106,16 @@ export default function LoansPage() {
     enabled: canCreate,
   });
 
+  /** Only the accounts this customer can still receive money through — a closed one is history, not a target. */
+  const { data: bankAccounts } = useQuery({
+    queryKey: ['customers', customerId, 'bank-accounts', 'ACTIVE'],
+    queryFn: () =>
+      api
+        .get(`/customers/${customerId}/bank-accounts`, { params: { status: 'ACTIVE' } })
+        .then(unwrap<CustomerBankAccountsView>),
+    enabled: canCreate && channel === DisbursementChannel.BANK && Boolean(customerId),
+  });
+
   const createMutation = useMutation({
     mutationFn: () =>
       api.post('/loans', {
@@ -105,6 +125,9 @@ export default function LoansPage() {
         termValue: termValue ? Number(termValue) : undefined,
         termUnit: termValue ? termUnit : undefined,
         note: note || undefined,
+        disbursementChannel: channel || undefined,
+        disbursementBankAccountId: channel === DisbursementChannel.BANK ? bankAccountId : undefined,
+        disbursementReference: reference || undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loans'] });
@@ -115,6 +138,9 @@ export default function LoansPage() {
       setPrincipal('');
       setTermValue('');
       setNote('');
+      setChannel('');
+      setBankAccountId('');
+      setReference('');
       setError(null);
     },
     onError: (e: Error) => setError(e.message),
@@ -141,16 +167,27 @@ export default function LoansPage() {
         unit: termValue ? termUnit : selectedProduct.termUnit,
       }
     : null;
-  const previewInterest =
+  const declining = selectedProduct?.interestMethod === InterestMethod.DECLINING;
+  const preview =
     selectedProduct && effectiveTerm && Number(principal) > 0
-      ? flatInterestTotal({
-          principal: Number(principal),
-          ratePercent: selectedProduct.interestRate,
-          rateUnit: selectedProduct.interestRatePeriod,
-          termValue: effectiveTerm.value,
-          termUnit: effectiveTerm.unit,
-        })
-      : 0;
+      ? {
+          flat: flatInterestTotal({
+            principal: Number(principal),
+            ratePercent: selectedProduct.interestRate,
+            rateUnit: selectedProduct.interestRatePeriod,
+            termValue: effectiveTerm.value,
+            termUnit: effectiveTerm.unit,
+          }),
+          declining: decliningInterestPreview({
+            principal: Number(principal),
+            ratePercent: selectedProduct.interestRate,
+            rateUnit: selectedProduct.interestRatePeriod,
+            termValue: effectiveTerm.value,
+            termUnit: effectiveTerm.unit,
+          }),
+        }
+      : null;
+  const previewInterest = preview ? (declining ? preview.declining.total : preview.flat) : 0;
 
   return (
     <Stack spacing={2}>
@@ -253,11 +290,7 @@ export default function LoansPage() {
                   </TableRow>
                 ))}
                 {data && data.data.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center">
-                      {t('loans.noLoans')}
-                    </TableCell>
-                  </TableRow>
+                  <EmptyState colSpan={8} message={t('loans.noLoans')} />
                 )}
               </TableBody>
             </Table>
@@ -284,7 +317,10 @@ export default function LoansPage() {
                 select
                 label={`${t('loans.customer')} *`}
                 value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
+                onChange={(e) => {
+                  setCustomerId(e.target.value);
+                  setBankAccountId('');
+                }}
                 required
                 fullWidth
               >
@@ -323,6 +359,7 @@ export default function LoansPage() {
                     <MenuItem key={p.id} value={p.id}>
                       {p.code} — {p.name} (
                       {t('products.rateDisplay', { rate: p.interestRate, unit: t(`units.${p.interestRatePeriod}`) })},{' '}
+                      {interestMethodName(t, p.interestMethod)},{' '}
                       {t('products.termDisplay', { value: p.termValue, unit: t(`units.${p.termUnit}`) })})
                     </MenuItem>
                   ))}
@@ -359,15 +396,82 @@ export default function LoansPage() {
                   ))}
                 </TextField>
               </Stack>
-              {selectedProduct && effectiveTerm && Number(principal) > 0 && (
+              {selectedProduct && preview && (
                 <Alert severity="info">
-                  {t('loans.interestPreview', { interest: formatLak(previewInterest, selectedProduct.currency) })}{' '}
-                  —{' '}
-                  {t('loans.totalAtDisbursement', {
-                    total: formatLak(Number(principal) + previewInterest, selectedProduct.currency),
-                  })}
+                  {declining ? (
+                    <>
+                      {t('loans.interestPreviewDeclining', {
+                        interest: formatLak(previewInterest, selectedProduct.currency),
+                        count: preview.declining.periods,
+                      })}{' '}
+                      —{' '}
+                      {t('loans.decliningAtDisbursement', {
+                        first: formatLak(preview.declining.firstPeriod, selectedProduct.currency),
+                        total: formatLak(Number(principal) + preview.declining.firstPeriod, selectedProduct.currency),
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      {t('loans.interestPreview', { interest: formatLak(previewInterest, selectedProduct.currency) })}{' '}
+                      —{' '}
+                      {t('loans.totalAtDisbursement', {
+                        total: formatLak(Number(principal) + previewInterest, selectedProduct.currency),
+                      })}
+                    </>
+                  )}
                 </Alert>
               )}
+              <Divider />
+              <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                <TextField
+                  select
+                  label={t('disbursement.channel')}
+                  value={channel}
+                  onChange={(e) => {
+                    setChannel(e.target.value as '' | DisbursementChannel);
+                    setBankAccountId('');
+                  }}
+                  sx={{ minWidth: 200 }}
+                >
+                  <MenuItem value="">
+                    {t('disbursement.notRecorded')}
+                  </MenuItem>
+                  {DISBURSEMENT_CHANNELS.map((item) => (
+                    <MenuItem key={item} value={item}>
+                      {t(`status.${item}`)}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                {channel === DisbursementChannel.BANK && (
+                  <TextField
+                    select
+                    label={`${t('disbursement.bankAccount')} *`}
+                    value={bankAccountId}
+                    onChange={(e) => setBankAccountId(e.target.value)}
+                    sx={{ minWidth: 320 }}
+                  >
+                    {(bankAccounts?.accounts ?? []).map((account) => (
+                      <MenuItem key={account.id} value={account.id}>
+                        {account.bankName} — {account.accountNumber} · {account.accountHolderName}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+                <TextField
+                  label={t('disbursement.reference')}
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  slotProps={{ htmlInput: { maxLength: 64 } }}
+                  sx={{ minWidth: 220 }}
+                />
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                {channel === DisbursementChannel.BANK
+                  ? t('disbursement.bankInfo', { count: bankAccounts?.accounts.length ?? 0 })
+                  : channel === DisbursementChannel.CASH
+                    ? t('disbursement.cashInfo')
+                    : t('disbursement.channelInfo')}
+              </Typography>
               <TextField
                 label={t('loans.note')}
                 value={note}
@@ -379,7 +483,11 @@ export default function LoansPage() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpen(false)}>{t('common.cancel')}</Button>
-            <Button type="submit" variant="contained" disabled={createMutation.isPending}>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={createMutation.isPending || (channel === DisbursementChannel.BANK && !bankAccountId)}
+            >
               {createMutation.isPending ? t('common.loading') : t('loans.new')}
             </Button>
           </DialogActions>

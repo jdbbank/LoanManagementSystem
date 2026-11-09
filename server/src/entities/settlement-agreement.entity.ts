@@ -25,6 +25,15 @@ export class SettlementAgreement {
   @Column(decimalColumn())
   agreedAmount!: number;
 
+  /**
+   * What settling early cost when this agreement was made: the loan's own fee percent applied to the
+   * principal then outstanding. Frozen here for the same reason the agreed amount is — a later product
+   * change must not re-price a payoff already negotiated. It is billed as a PENALTY transaction
+   * against this agreement, so the customer pays `agreedAmount + earlySettlementFee`.
+   */
+  @Column(decimalColumn())
+  earlySettlementFee!: number;
+
   @Column({ type: 'varchar', length: 3, default: 'LAK' })
   currency!: string;
 

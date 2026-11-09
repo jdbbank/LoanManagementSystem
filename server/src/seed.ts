@@ -14,6 +14,7 @@ import {
   DEFAULT_HEAD_THRESHOLD,
 } from './services/approval.service';
 import { getKycPolicy } from './services/kyc-policy.service';
+import { resolveTenant } from './services/tenant.service';
 import { createLoanWithDisbursement } from './modules/loans.router';
 import { logger } from './utils/logger';
 
@@ -73,9 +74,14 @@ export async function runSeed(em: EntityManager): Promise<void> {
 
   logger.info('[seed] seeding users, products, customers, loans...');
 
+  // Every seeded account belongs to the organisation this deployment answers for; the row is created
+  // by the migration that adds the column, not here, so a scratch database without it fails loudly.
+  const tenant = await resolveTenant(em);
+
   const users = new Map<string, User>();
   for (const seedUser of SEED_USERS) {
     const user = em.create(User, {
+      tenantId: tenant.id,
       username: seedUser.username,
       passwordHash: await bcrypt.hash(seedUser.password, 10),
       fullName: seedUser.fullName,

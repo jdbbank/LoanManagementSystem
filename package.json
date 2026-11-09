@@ -14,12 +14,16 @@
     "dev:mailer": "npm run dev -w mailer",
     "build": "npm run build -w server && npm run build -w web && npm run build -w mailer",
     "test": "npm run test -w server",
+    "test:migrations": "node scripts/test/migration-check.mjs",
     "test:e2e:oracle": "node scripts/test/oracle-selftest.mjs",
     "test:e2e:backup": "node scripts/test/backup-test-db.mjs",
     "test:e2e:reset": "node scripts/test/reset-db.mjs --confirm-loan_management",
     "test:e2e:seed": "node scripts/test/seed-test-data.mjs",
     "test:e2e:run": "node scripts/test/run-e2e.mjs",
     "test:e2e:full": "node scripts/test/run-e2e-full.mjs",
+    "test:e2e:report": "node scripts/test/report.mjs",
+    "logs:scrub": "node scripts/scrub-log-secrets.mjs",
+    "logs:scrub:apply": "node scripts/scrub-log-secrets.mjs --apply",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   }

@@ -14,7 +14,9 @@ const ThemeModeContext = createContext<ThemeModeValue | null>(null);
 
 function getInitialMode(): PaletteMode {
   const saved = localStorage.getItem(THEME_STORAGE_KEY);
-  return saved === 'dark' || saved === 'light' ? saved : 'light';
+  if (saved === 'dark' || saved === 'light') return saved;
+  // No stored choice yet: follow the OS rather than forcing the light scheme.
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {

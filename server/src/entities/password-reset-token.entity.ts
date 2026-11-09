@@ -2,9 +2,9 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 import { ResetTokenKind } from './types';
 
 /**
- * A password-reset secret, stored only as its SHA-256 hash. The plaintext OTP or link
- * token exists just long enough to be delivered, so a database dump cannot reset anything.
- * Rows are kept after use (usedAt set) for the audit trail.
+ * A password-reset secret, stored only as a keyed digest of it. The plaintext OTP or link token
+ * exists just long enough to be delivered, so a database dump cannot reset anything. Rows are kept
+ * after use (usedAt set) for the audit trail.
  */
 @Entity('password_reset_tokens')
 @Index(['userId', 'kind', 'usedAt'])

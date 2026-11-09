@@ -25,6 +25,17 @@ export interface NotificationInput {
 }
 
 /**
+ * Events whose rendered message IS the secret: the OTP is the subject of the code email and the
+ * reset URL is carried in the body. Their content is sealed at rest and opened only at send time.
+ */
+export const SECRET_EVENT_TYPES: ReadonlySet<NotificationEventType> = new Set([
+  NotificationEventType.PASSWORD_RESET_OTP,
+  NotificationEventType.PASSWORD_RESET_LINK,
+]);
+
+const carriesSecret = (type: NotificationEventType): boolean => SECRET_EVENT_TYPES.has(type);
+
+/**
  * Renders the email with the backend's own template and parks it in the outbox.
  * Call this with the caller's transaction-scoped EntityManager so a notification is
  * committed exactly when the business change is committed — and never when it isn't.
@@ -53,6 +64,8 @@ export async function enqueueNotification(
     ...input.payload,
     recipientName: input.to?.fullName ?? '',
   });
+  const subject = rendered.subject.slice(0, 255);
+  const secret = carriesSecret(input.type);
 
   const row = em.create(NotificationOutbox, {
     id: randomUUID(),
@@ -60,7 +73,8 @@ export async function enqueueNotification(
     recipientEmail: email.slice(0, 191),
     recipientName: (input.to?.fullName ?? '').slice(0, 191),
     locale: template.locale,
-    subject: rendered.subject.slice(0, 255),
+    // A reset email puts the OTP in the subject line, so the subject is sealed for those types too.
+    subject: secret ? seal(subject) : subject,
     // The rendered message can hold an OTP or a reset link, so it never reaches the table in plain text.
     bodyHtml: seal(rendered.html),
     bodyText: seal(rendered.text),
@@ -86,7 +100,7 @@ export function toNotificationEvent(row: NotificationOutbox): NotificationEvent 
     occurredAt: row.createdAt.toISOString(),
     locale: row.locale,
     to: { email: row.recipientEmail, fullName: row.recipientName },
-    subject: row.subject,
+    subject: carriesSecret(row.type) ? unseal(row.subject) : row.subject,
     html: unseal(row.bodyHtml),
     text: unseal(row.bodyText),
     payload: unsealJson<NotificationEvent['payload']>(row.payload),

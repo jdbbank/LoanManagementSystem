@@ -1,10 +1,13 @@
+import EmptyState from '../components/EmptyState';
+import TableSkeleton from '../components/TableSkeleton';
+import { LoadingPanel } from '../components/LoadingOverlay';
 import AddIcon from '@mui/icons-material/Add';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
+import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -25,10 +28,12 @@ import { api, unwrap } from '../api/client';
 import {
   COMPONENT_ORDER,
   LoanStatus,
+  PaymentRequestPurpose,
   PaymentRequestStatus,
   formatLak,
   type ComponentAmounts,
   type Loan,
+  type PayableNow,
   type Pagination,
   type PaymentRequest,
   type PaymentRequestDetail,
@@ -66,6 +71,7 @@ export default function PaymentRequestsPage() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [loanId, setLoanId] = useState('');
+  const [purpose, setPurpose] = useState<PaymentRequestPurpose>(PaymentRequestPurpose.PAY_DEBT);
   const [cashAmount, setCashAmount] = useState('');
   const [creditToApply, setCreditToApply] = useState('0');
   const [note, setNote] = useState('');
@@ -97,6 +103,12 @@ export default function PaymentRequestsPage() {
       api.get(`/payment-requests/${activeRequest}`).then(unwrap<PaymentRequestDetail>),
     enabled: Boolean(activeRequest),
   });
+  /** The collection ceiling for the loan picked in the dialog: only arrived instalments may be paid. */
+  const payableQuery = useQuery({
+    queryKey: ['loan-payable-now', loanId],
+    queryFn: () => api.get(`/loans/${loanId}/payable-now`).then(unwrap<PayableNow>),
+    enabled: createOpen && Boolean(loanId) && purpose === PaymentRequestPurpose.PAY_DEBT,
+  });
 
   const refresh = async () => {
     await Promise.all([
@@ -113,12 +125,14 @@ export default function PaymentRequestsPage() {
         loanId,
         cashAmount: Number(cashAmount),
         creditToApply: Number(creditToApply),
+        purpose,
         note: note || undefined,
       }),
     onSuccess: async () => {
       await refresh();
       setCreateOpen(false);
       setLoanId('');
+      setPurpose(PaymentRequestPurpose.PAY_DEBT);
       setCashAmount('');
       setCreditToApply('0');
       setNote('');
@@ -190,6 +204,10 @@ export default function PaymentRequestsPage() {
   };
 
   const request = detailQuery.data?.request;
+  const payable = payableQuery.data;
+  const isDeposit = purpose === PaymentRequestPurpose.DEPOSIT_TO_CREDIT;
+  const requestedTotal = Number(cashAmount || 0) + Number(creditToApply || 0);
+  const overPayable = !isDeposit && payable !== undefined && requestedTotal > payable.maxPayable + 0.004;
   const proposedAllocation = { ...emptyComponents };
   for (const item of detailQuery.data?.allocations ?? []) {
     proposedAllocation[item.component] = Number(item.proposedAmount);
@@ -212,7 +230,7 @@ export default function PaymentRequestsPage() {
       <Card>
         <CardContent>
           {requestsQuery.isLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+            <TableSkeleton columns={8} label={t('common.loading')} />
           ) : (
             <>
             <Box sx={{ overflowX: 'auto' }}>
@@ -221,6 +239,7 @@ export default function PaymentRequestsPage() {
                   <TableRow>
                     <TableCell>{t('payments.request')}</TableCell>
                     <TableCell>{t('payments.loan')}</TableCell>
+                    <TableCell>{t('payments.purpose')}</TableCell>
                     <TableCell>{t('payments.cash')}</TableCell>
                     <TableCell>{t('payments.credit')}</TableCell>
                     <TableCell>{t('payments.status')}</TableCell>
@@ -233,6 +252,18 @@ export default function PaymentRequestsPage() {
                     <TableRow key={item.id} hover>
                       <TableCell>{item.requestNo}</TableCell>
                       <TableCell>{item.loanId}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={item.purpose === PaymentRequestPurpose.DEPOSIT_TO_CREDIT ? 'secondary' : 'default'}
+                          label={
+                            item.purpose === PaymentRequestPurpose.DEPOSIT_TO_CREDIT
+                              ? t('payments.purposeDeposit')
+                              : t('payments.purposePayDebt')
+                          }
+                        />
+                      </TableCell>
                       <TableCell>{formatLak(item.cashAmount, item.currency)}</TableCell>
                       <TableCell>{formatLak(item.creditApplied, item.currency)}</TableCell>
                       <TableCell><StatusChip status={item.status} /></TableCell>
@@ -259,7 +290,7 @@ export default function PaymentRequestsPage() {
                     </TableRow>
                   ))}
                   {requestsQuery.data?.data.length === 0 && (
-                    <TableRow><TableCell colSpan={7} align="center">{t('payments.none')}</TableCell></TableRow>
+                    <EmptyState colSpan={8} message={t('payments.none')} />
                   )}
                 </TableBody>
               </Table>
@@ -297,6 +328,41 @@ export default function PaymentRequestsPage() {
                   </MenuItem>
                 ))}
               </TextField>
+              <TextField
+                select
+                label={t('payments.purpose')}
+                value={purpose}
+                onChange={(event) => setPurpose(event.target.value as PaymentRequestPurpose)}
+              >
+                <MenuItem value={PaymentRequestPurpose.PAY_DEBT}>{t('payments.purposePayDebt')}</MenuItem>
+                <MenuItem value={PaymentRequestPurpose.DEPOSIT_TO_CREDIT}>{t('payments.purposeDeposit')}</MenuItem>
+              </TextField>
+              {isDeposit && (
+                <Typography variant="caption" color="text.secondary">
+                  {t('payments.depositHint')}
+                </Typography>
+              )}
+              {payable && (
+                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1.5 }}>
+                  <Typography variant="body2">
+                    {t('payments.maxPayableToday')}: {formatLak(payable.maxPayable)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {t('payments.arrivedPeriods', { n: payable.duePeriods.length, total: formatLak(payable.dueToPay) })}
+                    {payable.nextPendingPeriod
+                      ? ` · ${t('payments.nextPeriodDate', {
+                          index: payable.nextPendingPeriod.index,
+                          date: new Date(payable.nextPendingPeriod.dueDate).toLocaleDateString(),
+                        })}`
+                      : ''}
+                  </Typography>
+                  {payable.creditBalance > 0 && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      {t('payments.creditBalance', { amount: formatLak(payable.creditBalance) })}
+                    </Typography>
+                  )}
+                </Box>
+              )}
               <MoneyTextField
                 label={t('payments.cashReceived')}
                 minValue={0}
@@ -304,13 +370,23 @@ export default function PaymentRequestsPage() {
                 onChange={setCashAmount}
                 required
               />
-              <MoneyTextField
-                label={t('payments.creditToApply')}
-                minValue={0}
-                value={creditToApply}
-                onChange={setCreditToApply}
-              />
+              {!isDeposit && (
+                <MoneyTextField
+                  label={t('payments.creditToApply')}
+                  minValue={0}
+                  value={creditToApply}
+                  onChange={setCreditToApply}
+                />
+              )}
               <TextField label={t('payments.note')} value={note} onChange={(event) => setNote(event.target.value)} multiline />
+              {overPayable && (
+                <Alert severity="warning">
+                  {t('payments.overMaxPayable', {
+                    requested: formatLak(requestedTotal),
+                    max: formatLak(payable?.maxPayable ?? 0),
+                  })}
+                </Alert>
+              )}
               <Typography variant="caption" color="text.secondary">
                 {t('payments.pendingHint')}
               </Typography>
@@ -333,7 +409,7 @@ export default function PaymentRequestsPage() {
       >
         <DialogTitle>{decision === 'APPROVE' ? t('payments.verify') : t('payments.rejectDialog')}</DialogTitle>
         <DialogContent>
-          {detailQuery.isLoading ? <CircularProgress /> : request && (
+          {detailQuery.isLoading ? <LoadingPanel label={t('common.loading')} /> : request && (
             <Stack spacing={2} sx={{ pt: 1 }}>
               <Typography variant="body2">{request.requestNo} · {formatLak(Number(request.cashAmount) + Number(request.creditApplied), request.currency)}</Typography>
               {decision === 'APPROVE' && (

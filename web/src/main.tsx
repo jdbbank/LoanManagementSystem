@@ -26,3 +26,10 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// Registered only in a build: a service worker in dev would sit in front of Vite's HMR socket.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}

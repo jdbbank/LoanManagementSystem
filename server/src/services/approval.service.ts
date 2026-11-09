@@ -3,11 +3,13 @@ import { writeAudit } from './audit.service';
 import { ApprovalWorkflow } from '../entities/approval-workflow.entity';
 import { ApprovalStep as StepEntity } from '../entities/approval-step.entity';
 import { FinancialTransaction } from '../entities/financial-transaction.entity';
+import { RestructureRequest } from '../entities/restructure-request.entity';
 import { SettlementAgreement } from '../entities/settlement-agreement.entity';
 import { SystemConfig } from '../entities/system-config.entity';
 import {
   ApprovalLevel,
   ApprovalSubjectType,
+  RestructureStatus,
   SettlementStatus,
   StepStatus,
   TransactionStatus,
@@ -17,7 +19,11 @@ import {
 import { AuthUser, canDecideLevel } from '../middleware/auth';
 import { AppError, badRequest, notFound, unprocessable } from '../utils/errors';
 import { EPS, num } from '../utils/money';
-import { notifyLoanDecision, notifySettlementDecision } from './notification-events.service';
+import {
+  notifyLoanDecision,
+  notifyRestructureDecision,
+  notifySettlementDecision,
+} from './notification-events.service';
 
 export const CONFIG_CHECKER_THRESHOLD = 'approval.checkerThreshold';
 export const CONFIG_HEAD_THRESHOLD = 'approval.headThreshold';
@@ -38,6 +44,58 @@ export async function getThresholds(em: EntityManager): Promise<{ checkerThresho
     checkerThreshold: checker ? num(checker.value) : DEFAULT_CHECKER_THRESHOLD,
     headThreshold: head ? num(head.value) : DEFAULT_HEAD_THRESHOLD,
   };
+}
+
+/**
+ * The largest threshold the API accepts. `Number.MAX_SAFE_INTEGER` is below the DECIMAL(18,2)
+ * capacity every money column has, so a value inside this bound is stored exactly as sent —
+ * going higher would let a request silently round on its way through a JavaScript number.
+ */
+export const MAX_APPROVAL_THRESHOLD = Number.MAX_SAFE_INTEGER;
+
+export interface ApprovalThresholds {
+  checkerThreshold: number;
+  headThreshold: number;
+}
+
+/**
+ * Writes the central approval thresholds (LOCKED section 12) through the caller's transaction,
+ * the same way the KYC and password policies are written: both rows and the audit row land
+ * together or not at all, because a half-applied pair decides which amounts skip an approval
+ * level — `checker > head` means every large amount stops needing the Head it still needs.
+ */
+export async function updateThresholds(
+  em: EntityManager,
+  input: ApprovalThresholds,
+  userId: string,
+): Promise<{ previous: ApprovalThresholds; updated: ApprovalThresholds }> {
+  const previous = await getThresholds(em);
+  const checker = num(input.checkerThreshold);
+  const head = num(input.headThreshold);
+  if (head < checker) {
+    throw badRequest('Head threshold must be greater than or equal to the checker threshold');
+  }
+
+  const rows: Array<[string, number, string]> = [
+    [CONFIG_CHECKER_THRESHOLD, checker, 'Amounts at or below this need Maker -> Checker only'],
+    [CONFIG_HEAD_THRESHOLD, head, 'Amounts above this also need Head and Admin final approval'],
+  ];
+  for (const [key, value, description] of rows) {
+    const existing = await em.findOne(SystemConfig, { where: { key } });
+    if (existing) {
+      existing.value = value;
+      existing.updatedBy = userId;
+      existing.description = description;
+      await em.save(SystemConfig, existing);
+    } else {
+      await em.save(
+        SystemConfig,
+        em.create(SystemConfig, { key, value, updatedBy: userId, description }),
+      );
+    }
+  }
+
+  return { previous, updated: await getThresholds(em) };
 }
 
 /**
@@ -62,11 +120,24 @@ export interface CreateWorkflowInput {
   amount: number;
   makerUserId: string;
   currency?: string;
+  /**
+   * Levels this decision needs whatever the amount says. A hardship addendum is a change to a signed
+   * contract, so it always needs a Checker and a Head; the amount can only add a level above that.
+   */
+  minimumLevels?: ApprovalLevel[];
+}
+
+const LEVEL_ORDER: ApprovalLevel[] = [ApprovalLevel.CHECKER, ApprovalLevel.HEAD, ApprovalLevel.ADMIN];
+
+/** The union of the amount-driven levels and any forced ones, kept in approval order. */
+function withMinimumLevels(levels: ApprovalLevel[], minimum?: ApprovalLevel[]): ApprovalLevel[] {
+  if (!minimum || minimum.length === 0) return levels;
+  return LEVEL_ORDER.filter((level) => levels.includes(level) || minimum.includes(level));
 }
 
 export async function createWorkflow(em: EntityManager, input: CreateWorkflowInput): Promise<ApprovalWorkflow> {
   const thresholds = await getThresholds(em);
-  const requiredLevels = computeRequiredLevels(input.amount, thresholds);
+  const requiredLevels = withMinimumLevels(computeRequiredLevels(input.amount, thresholds), input.minimumLevels);
   const workflow = em.create(ApprovalWorkflow, {
     subjectType: input.subjectType,
     subjectId: input.subjectId,
@@ -111,15 +182,29 @@ async function loadSubject(em: EntityManager, workflow: ApprovalWorkflow): Promi
       description: `transaction ${tx.referenceNo} (${tx.transactionType})`,
     };
   }
-  const agreement = await em.findOne(SettlementAgreement, { where: { id: workflow.subjectId } });
-  if (!agreement) throw notFound('Settlement agreement not found');
+  if (workflow.subjectType === ApprovalSubjectType.SETTLEMENT_AGREEMENT) {
+    const agreement = await em.findOne(SettlementAgreement, { where: { id: workflow.subjectId } });
+    if (!agreement) throw notFound('Settlement agreement not found');
+    return {
+      makerUserId: agreement.createdBy,
+      loanId: agreement.loanId,
+      customerId: agreement.customerId,
+      amount: num(agreement.agreedAmount),
+      currency: agreement.currency,
+      description: `settlement agreement ${agreement.agreementNo}`,
+    };
+  }
+  const request = await em.findOne(RestructureRequest, { where: { id: workflow.subjectId } });
+  if (!request) throw notFound('Restructure request not found');
   return {
-    makerUserId: agreement.createdBy,
-    loanId: agreement.loanId,
-    customerId: agreement.customerId,
-    amount: num(agreement.agreedAmount),
-    currency: agreement.currency,
-    description: `settlement agreement ${agreement.agreementNo}`,
+    makerUserId: request.createdBy,
+    loanId: request.loanId,
+    customerId: request.customerId,
+    // The decision is priced on what the loan still owes, not on the relief alone: re-papering a
+    // large contract is a large decision even when the waiver written on it is small.
+    amount: request.repricingAmount,
+    currency: request.currency,
+    description: `hardship addendum ${request.requestNo}`,
   };
 }
 
@@ -129,11 +214,16 @@ async function loadSubject(em: EntityManager, workflow: ApprovalWorkflow): Promi
  * validated step (LOCKED sections 21, 22).
  */
 export async function decideStep(em: EntityManager, input: DecideStepInput): Promise<ApprovalWorkflow> {
-  const step = await em.findOne(StepEntity, { where: { id: input.stepId } });
+  // Both rows are locked before anything is read: without this, two checkers clicking the same
+  // step at the same time each see PENDING and both write an approval (F-CONC-3).
+  const step = await em.findOne(StepEntity, { where: { id: input.stepId }, lock: { mode: 'pessimistic_write' } });
   if (!step) throw notFound('Approval step not found');
   if (step.status !== StepStatus.PENDING) throw new AppError(409, 'This approval step has already been decided');
 
-  const workflow = await em.findOne(ApprovalWorkflow, { where: { id: step.workflowId } });
+  const workflow = await em.findOne(ApprovalWorkflow, {
+    where: { id: step.workflowId },
+    lock: { mode: 'pessimistic_write' },
+  });
   if (!workflow) throw notFound('Approval workflow not found');
   if (workflow.status !== WorkflowStatus.PENDING) throw new AppError(409, 'This approval workflow is already closed');
 
@@ -193,7 +283,7 @@ export async function decideStep(em: EntityManager, input: DecideStepInput): Pro
           reason: tx.rejectionReason,
         });
       }
-    } else {
+    } else if (workflow.subjectType === ApprovalSubjectType.SETTLEMENT_AGREEMENT) {
       const agreement = await em.findOneByOrFail(SettlementAgreement, { id: workflow.subjectId });
       agreement.status = SettlementStatus.REJECTED;
       agreement.decidedBy = input.user.id;
@@ -209,6 +299,22 @@ export async function decideStep(em: EntityManager, input: DecideStepInput): Pro
         reason: agreement.decisionReason,
         decidedAt: agreement.decidedAt,
       });
+    } else {
+      const request = await em.findOneByOrFail(RestructureRequest, { id: workflow.subjectId });
+      request.status = RestructureStatus.REJECTED;
+      request.decidedBy = input.user.id;
+      request.decidedAt = new Date();
+      request.decisionReason = input.reason ?? null;
+      await em.save(RestructureRequest, request);
+      await notifyRestructureDecision(em, {
+        loanId: request.loanId,
+        requestNo: request.requestNo,
+        approved: false,
+        reason: request.decisionReason,
+        makerUserId: request.createdBy,
+      });
+      // Nothing was written to the ledger and no term was touched — a refused addendum leaves the
+      // contract exactly as it stands. The APPROVAL_STEP_REJECTED row below carries the decision.
     }
 
     await writeAudit(em, {
@@ -264,7 +370,7 @@ export async function decideStep(em: EntityManager, input: DecideStepInput): Pro
           reason: input.reason ?? null,
         });
       }
-    } else {
+    } else if (workflow.subjectType === ApprovalSubjectType.SETTLEMENT_AGREEMENT) {
       const agreement = await em.findOneByOrFail(SettlementAgreement, { id: workflow.subjectId });
       agreement.status = SettlementStatus.APPROVED;
       agreement.decidedBy = input.user.id;
@@ -285,6 +391,29 @@ export async function decideStep(em: EntityManager, input: DecideStepInput): Pro
         approved: true,
         reason: agreement.decisionReason,
         decidedAt: agreement.decidedAt,
+      });
+    } else {
+      const request = await em.findOneByOrFail(RestructureRequest, { id: workflow.subjectId });
+      request.status = RestructureStatus.APPROVED;
+      request.decidedBy = input.user.id;
+      request.decidedAt = new Date();
+      request.decisionReason = input.reason ?? null;
+      await em.save(RestructureRequest, request);
+      await writeAudit(em, {
+        ...base,
+        action: 'RESTRUCTURE_REQUEST_APPROVED',
+        previousStatus: RestructureStatus.PENDING_APPROVAL,
+        newStatus: RestructureStatus.APPROVED,
+        reason:
+          `Addendum ${request.requestNo} approved` +
+          `${input.reason ? `: ${input.reason}` : ''} — the loan keeps its current terms until staff apply it`,
+      });
+      await notifyRestructureDecision(em, {
+        loanId: request.loanId,
+        requestNo: request.requestNo,
+        approved: true,
+        reason: request.decisionReason,
+        makerUserId: request.createdBy,
       });
     }
   } else {

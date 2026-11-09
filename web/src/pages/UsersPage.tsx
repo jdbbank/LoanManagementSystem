@@ -4,6 +4,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import LinkIcon from '@mui/icons-material/Link';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import RestoreIcon from '@mui/icons-material/Restore';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -12,7 +13,6 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Checkbox from '@mui/material/Checkbox';
-import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -39,9 +39,11 @@ import {
   type AvatarPolicy,
   type ManagedUser,
   type PasswordConfig,
+  type UnlockResult,
 } from '../api/types';
 import PageHeader from '../components/PageHeader';
 import StatusChip from '../components/StatusChip';
+import { LoadingPanel } from '../components/LoadingOverlay';
 import { passwordRuleHints } from '../utils/password-rules';
 
 const ROLE_OPTIONS = Object.values(UserRole);
@@ -152,6 +154,32 @@ export default function UsersPage() {
     onError: (err: Error) => setError(err.message),
   });
 
+  const unlockMutation = useMutation({
+    mutationFn: (user: ManagedUser) => api.post<UnlockResult>(`/users/${user.id}/unlock`),
+    onSuccess: async (response) => {
+      const result = response.data;
+      setNotice(
+        t('users.unlocked', { username: result.username }) +
+          (result.resetLink.sent
+            ? ` ${t('users.unlockLinkSent')}`
+            : ` ${t('users.unlockLinkNotSent', { reason: result.resetLink.reason ?? t('users.unlockLinkUnknown') })}`),
+      );
+      await refresh();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  /** ADMIN must know which rule fired and when, because the two rules are asked about differently. */
+  const lockTooltip = (user: ManagedUser) =>
+    t(
+      user.lockReason === 'IDLE'
+        ? 'users.lockIdle'
+        : user.lockReason === 'FAILED_ATTEMPTS'
+          ? 'users.lockFailedAttempts'
+          : 'users.lockUnknown',
+      { since: user.lockedAt ? new Date(user.lockedAt).toLocaleString() : t('users.never') },
+    );
+
   const removeAvatarMutation = useMutation({
     mutationFn: (userId: string) => api.delete(`/users/${userId}/avatar`),
     onSuccess: async () => {
@@ -201,7 +229,7 @@ export default function UsersPage() {
   /** The dialog must show the freshly fetched row, so an upload updates the preview. */
   const dialogUser = editing ? (users.find((user) => user.id === editing.id) ?? editing) : null;
 
-  if (usersQuery.isLoading) return <CircularProgress />;
+  if (usersQuery.isLoading) return <LoadingPanel label={t('common.loading')} />;
 
   return (
     <Stack spacing={2}>
@@ -286,9 +314,17 @@ export default function UsersPage() {
                   </TableCell>
                   <TableCell>{t(`roles.${user.role}`)}</TableCell>
                   <TableCell>
-                    <StatusChip
-                      status={user.deletedAt ? 'DELETED' : user.isActive ? 'ACTIVE' : 'INACTIVE'}
-                    />
+                    {user.deletedAt ? (
+                      <StatusChip status="DELETED" />
+                    ) : user.isLocked ? (
+                      <Tooltip title={lockTooltip(user)}>
+                        <span>
+                          <StatusChip status="LOCKED" />
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <StatusChip status={user.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                    )}
                   </TableCell>
                   <TableCell>
                     {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : t('users.never')}
@@ -308,6 +344,20 @@ export default function UsersPage() {
                       </Tooltip>
                     ) : (
                       <>
+                        {user.isLocked && (
+                          <Tooltip title={t('users.unlock')}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                color="warning"
+                                disabled={unlockMutation.isPending}
+                                onClick={() => unlockMutation.mutate(user)}
+                              >
+                                <LockOpenIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        )}
                         <Tooltip title={t('users.edit')}>
                           <IconButton size="small" onClick={() => openEdit(user)}>
                             <EditIcon fontSize="small" />

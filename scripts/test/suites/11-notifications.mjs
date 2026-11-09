@@ -3,8 +3,8 @@
 //
 // Everything the suite writes is its own: throwaway users, their outbox rows, their reset tokens,
 // the audit rows their actions produce (found by id-set differencing, because EMAIL_TEMPLATE_UPDATED
-// and NOTIFICATION_REQUEUED carry the ADMIN actor id, not a subject id), and the exact restore of the
-// nine email templates. The dispatcher runs on the dev `log` transport, so no message leaves the
+// and NOTIFICATION_REQUEUED carry the ADMIN actor id, not a subject id), and the exact restore of every
+// seeded email template. The dispatcher runs on the dev `log` transport, so no message leaves the
 // machine and every row the suite creates drains to SENT on its own.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import {
@@ -25,18 +25,21 @@ import {
 const CAT = 'notifications';
 const RUN_TAG = String(Date.now()).slice(-6);
 
-/** The nine codes the backend owns (DEFAULT_TEMPLATES in email-template.service.ts). */
+/**
+ * The codes the backend owns, read straight out of DEFAULT_TEMPLATES instead of repeated here: the
+ * list is what the seed must produce, so hard-coding it would let this suite keep passing while the
+ * seed and the enum drifted apart.
+ */
 const CODES = [
-  'LOAN_APPLICATION_SUBMITTED',
-  'LOAN_APPROVED',
-  'LOAN_REJECTED',
-  'PAYMENT_POSTED',
-  'SETTLEMENT_REQUESTED',
-  'SETTLEMENT_DECIDED',
-  'USER_CREATED',
-  'PASSWORD_RESET_OTP',
-  'PASSWORD_RESET_LINK',
+  ...new Set(
+    (
+      readFileSync(`${ROOT}server/src/services/email-template.service.ts`, 'utf8').match(
+        /code: NotificationEventType\.([A-Z_0-9]+)/g,
+      ) ?? []
+    ).map((m) => m.split('.').pop()),
+  ),
 ];
+const CODE_COUNT = CODES.length;
 
 /** Audit actions this suite is expected to produce; anything else is reported, never deleted. */
 const MY_AUDIT_ACTIONS = new Set([
@@ -67,6 +70,62 @@ const PAYLOAD_CONTRACT = {
   USER_CREATED: ['username', 'role', 'createdByName'],
   PASSWORD_RESET_OTP: ['otp', 'expiresMinutes'],
   PASSWORD_RESET_LINK: ['username', 'resetUrl', 'expiresMinutes'],
+  PARTY_REGISTERED: ['loanCode', 'partyRole', 'partyName', 'partyCustomerNumber', 'effectiveDate'],
+  PARTY_RELEASED: ['loanCode', 'partyRole', 'partyName', 'releaseReason', 'effectiveDate'],
+  RESTRUCTURE_REQUESTED: [
+    'loanCode',
+    'requestNo',
+    'changeTypes',
+    'newInterestRate',
+    'newTermMonths',
+    'reliefAmount',
+    'status',
+  ],
+  RESTRUCTURE_DECIDED: ['loanCode', 'requestNo', 'decision', 'decisionNote'],
+  RESTRUCTURE_APPLIED: [
+    'loanCode',
+    'requestNo',
+    'newInterestRate',
+    'newTermMonths',
+    'reliefAmount',
+    'appliedDate',
+  ],
+  PAYMENT_REQUEST_SUBMITTED: [
+    'loanCode',
+    'requestNo',
+    'purposeLabel',
+    'amount',
+    'receivedDate',
+    'status',
+  ],
+  PAYMENT_REQUEST_APPROVED: ['loanCode', 'requestNo', 'amount', 'allocation', 'remaining', 'status'],
+  PAYMENT_REQUEST_REJECTED: ['loanCode', 'requestNo', 'amount', 'reason'],
+  CREDIT_DEPOSITED: ['loanCode', 'amount', 'creditBalance', 'depositedDate', 'note'],
+  AUTO_DEBIT_POSTED: ['loanCode', 'instalment', 'amount', 'allocation', 'paidDate', 'remaining'],
+  PENALTY_POSTED: ['loanCode', 'amount', 'postedDate', 'reason', 'remaining'],
+  WAIVER_POSTED: ['loanCode', 'amount', 'components', 'postedDate', 'reason', 'remaining'],
+  WRITE_OFF_POSTED: ['loanCode', 'amount', 'components', 'postedDate', 'reason', 'remaining'],
+  CUSTOMER_REGISTERED: ['customerName', 'customerNumber', 'phone', 'email', 'kycStatus', 'createdByName', 'registeredDate'],
+  LOAN_PRODUCT_CREATED: ['productCode', 'productName', 'interestRate', 'interestMethod', 'term', 'currency', 'createdByName', 'createdDate'],
+  CUSTOMER_BANK_ACCOUNT_REGISTERED: [
+    'customerName',
+    'customerNumber',
+    'bankName',
+    'accountNumberMasked',
+    'accountHolderName',
+    'accountStatus',
+    'createdByName',
+    'registeredDate',
+  ],
+  LOAN_DISBURSEMENT_EVIDENCE_UPLOADED: [
+    'loanCode',
+    'customerName',
+    'channel',
+    'accountNumberMasked',
+    'fileName',
+    'uploadedByName',
+    'uploadedDate',
+  ],
 };
 
 /** Mirrors renderEmail(): every {{key}} is replaced, unknown keys collapse to an empty string. */
@@ -279,7 +338,7 @@ export default async function suite(ctx) {
     const templates = listed.json?.data?.templates ?? [];
     const defaults = listed.json?.data?.defaults ?? [];
 
-    ok('GET /templates คืนครบ 9 code ที่ระบบรองรับ', templates.length === 9 && new Set(templates.map((t) => t.code)).size === 9 && CODES.every((c) => templates.some((t) => t.code === c)), {
+    ok(`GET /templates คืนครบ ${CODE_COUNT} code ที่ระบบรองรับ`, templates.length === CODE_COUNT && new Set(templates.map((t) => t.code)).size === CODE_COUNT && CODES.every((c) => templates.some((t) => t.code === c)), {
       input: 'codes',
       expected: CODES.join(','),
       actual: templates.map((t) => t.code).join(','),
@@ -302,11 +361,11 @@ export default async function suite(ctx) {
     ok('คอลัมน์ variables ของทุก template ตรงกับ placeholder ที่อ่านได้จากเนื้อหาจริง', varMismatch.length === 0, {
       input: 'declaredVariablesOf() คำนวณซ้ำจาก subject+bodyHtml+bodyText',
       expected: 'no mismatch',
-      actual: varMismatch.length ? varMismatch.map((t) => `${t.code}: stored=${JSON.stringify(t.variables)} derived=${JSON.stringify(declaredOf(t))}`).join(' | ') : '9/9 match',
+      actual: varMismatch.length ? varMismatch.map((t) => `${t.code}: stored=${JSON.stringify(t.variables)} derived=${JSON.stringify(declaredOf(t))}`).join(' | ') : `${CODE_COUNT}/${CODE_COUNT} match`,
     });
-    ok('defaults คืน code + variables ของแบบทั้ง 9', defaults.length === 9 && defaults.every((d) => CODES.includes(d.code) && Array.isArray(d.variables)), {
+    ok(`defaults คืน code + variables ของแบบทั้ง ${CODE_COUNT}`, defaults.length === CODE_COUNT && defaults.every((d) => CODES.includes(d.code) && Array.isArray(d.variables)), {
       input: 'data.defaults',
-      expected: '9 {code, variables}',
+      expected: `${CODE_COUNT} {code, variables}`,
       actual: defaults.map((d) => d.code).join(','),
     });
     const defaultsDiff = CODES.map((code) => {
@@ -325,7 +384,7 @@ export default async function suite(ctx) {
     ok('template ใน DB ตรงกับ defaults ที่ code แจกจ่าย และทุก placeholder มีตัวป้อน', defaultsDiff.length === 0 && unsupplied.length === 0, {
       input: 'defaults vs stored variables, then stored placeholders vs the emitter payload contract',
       expected: 'no drift and no unsupplied variable',
-      actual: [...defaultsDiff, ...unsupplied].join(' | ') || '9/9 aligned',
+      actual: [...defaultsDiff, ...unsupplied].join(' | ') || `${CODE_COUNT}/${CODE_COUNT} aligned`,
       note: 'F-NTF-3: แถว SETTLEMENT_REQUESTED ในฐานข้อมูลยังมี {{waiverAmount}} ทั้งใน html และ text ขณะที่ DEFAULT_TEMPLATES ปัจจุบันยกเลิกตัวแปรนี้แล้ว (grep ทั้ง server/src ไม่พบชื่อเลย) — seedEmailTemplates เป็น insert-only และ reset-db.mjs ตั้งใจเก็บ email_templates ไว้ตอนล้างฐานข้อมูล แถวจึงไม่ถูก reconcile กลับ ผลต่อผู้ใช้: asText(undefined) คืนค่าว่าง renderEmail จึงลบ placeholder ทิ้งเงียบ ๆ อีเมลขอปิดบัญชีแสดงช่อง waiver เป็นค่าว่างแทนยอดจริง และรายการตัวแปรที่ UI โชว์ก็ไม่ตรงกับที่เก็บไว้',
     });
     const settlementRow = templates.find((t) => t.code === 'SETTLEMENT_REQUESTED');
@@ -342,9 +401,9 @@ export default async function suite(ctx) {
       actual: `leftoverBraces=${/\{\{/.test(renderedSettlement)} stillMentionsVar=${/waiverAmount/.test(renderedSettlement)}`,
       note: 'ผู้รับจะไม่เห็นข้อความเพี้ยน แต่จะเห็นช่องข้อมูลว่างอยู่หนึ่งช่อง ซึ่งคือยอด waiver ที่ควรแสดง',
     });
-    ok('id ของ template เป็น uuid ไม่ซ้ำกัน 9 ค่า', new Set(templates.map((t) => t.id)).size === 9 && templates.every((t) => /^[0-9a-f-]{36}$/.test(t.id)), {
+    ok(`id ของ template เป็น uuid ไม่ซ้ำกัน ${CODE_COUNT} ค่า`, new Set(templates.map((t) => t.id)).size === CODE_COUNT && templates.every((t) => /^[0-9a-f-]{36}$/.test(t.id)), {
       input: 'ids',
-      expected: '9 unique uuids',
+      expected: `${CODE_COUNT} unique uuids`,
       actual: `${new Set(templates.map((t) => t.id)).size} unique`,
     });
 
@@ -394,7 +453,7 @@ export default async function suite(ctx) {
     ];
     for (const [payload, label] of xssPayloads) {
       const bad = await api('PATCH', `/api/notifications/templates/${rejectedId}`, { token: admin, body: { bodyHtml: payload } });
-      statusCheck(CAT, `bodyHtml แบบ ${label}: 422拒绝ไม่บันทึก`, bad, 422, {
+      statusCheck(CAT, `bodyHtml แบบ ${label}: 422 ถูกปฏิเสธ ไม่บันทึก`, bad, 422, {
         input: payload,
         messageIncludes: 'Email markup may not contain scripts, iframes or event handlers',
       });
@@ -501,7 +560,7 @@ export default async function suite(ctx) {
     const off = await api('PATCH', `/api/notifications/templates/${userCreatedId}`, { token: admin, body: { isActive: false } });
     statusCheck(CAT, 'ปิดใช้งาน template USER_CREATED ผ่าน API: 200', off, 200, { input: 'PATCH isActive=false' });
     const uOff = await makeUser('off', { fullName: 'Test Notify Inactive', email: `tst_ntf_off_${RUN_TAG}@test.local` });
-    ok('ปิด template แล้ว: สร้างผู้ใช้สำเร็จแต่ไม่มีแถวใน outbox (业务流程ไม่พัง)', uOff.res.status === 201 && (await outboxFor(uOff.user.id)).length === 0, {
+    ok('ปิด template แล้ว: สร้างผู้ใช้สำเร็จแต่ไม่มีแถวใน outbox (กระบวนการธุรกิจไม่พัง)', uOff.res.status === 201 && (await outboxFor(uOff.user.id)).length === 0, {
       input: `user ${uOff.name} while the USER_CREATED template is inactive`,
       expected: 'HTTP 201 + 0 outbox rows',
       actual: `HTTP ${uOff.res.status} + ${(await outboxFor(uOff.user.id)).length} rows`,
@@ -932,10 +991,10 @@ export default async function suite(ctx) {
         return bad.length ? `${row.code}: ${bad.join(',')}` : null;
       })
       .filter(Boolean);
-    ok('ฐานข้อมูล: template ทั้ง 9 คืนค่าครบทุกคอลัมน์ (รวม updatedBy/updatedAt)', dbTemplateDiff.length === 0, {
+    ok(`ฐานข้อมูล: template ทั้ง ${CODE_COUNT} คืนค่าครบทุกคอลัมน์ (รวม updatedBy/updatedAt)`, dbTemplateDiff.length === 0, {
       input: 'row-by-row column diff vs the snapshot',
       expected: 'no differences',
-      actual: dbTemplateDiff.length ? dbTemplateDiff.join(' | ') : '9/9 identical',
+      actual: dbTemplateDiff.length ? dbTemplateDiff.join(' | ') : `${CODE_COUNT}/${CODE_COUNT} identical`,
     });
 
     // the reset tokens and outbox rows the suite produced

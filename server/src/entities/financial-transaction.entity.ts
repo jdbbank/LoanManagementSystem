@@ -47,6 +47,14 @@ export class FinancialTransaction {
   settlementAgreementId!: string | null;
 
   /**
+   * Repayment period this charge belongs to (1 = the period that starts at disbursement).
+   * Only INTEREST_ACCRUAL sets it: it is the idempotency key that stops one period being
+   * billed twice, the same role sourceRequestId plays for payments.
+   */
+  @Column({ type: 'int', nullable: true })
+  periodIndex!: number | null;
+
+  /**
    * Per-component amounts for transaction types that carry them
    * (WAIVER / WRITE_OFF / ADJUSTMENT component deltas; WRITE_OFF_REVERSAL snapshot of
    * the original write-off components). Non-negative except for ADJUSTMENT (signed).

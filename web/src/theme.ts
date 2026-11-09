@@ -1,7 +1,57 @@
 import { createTheme, type PaletteMode } from '@mui/material/styles';
 
+/**
+ * One rhythm for the whole shell: components take their durations from here instead of scattering
+ * literal milliseconds, so a hover and a drawer slide never disagree.
+ */
+export const motion = {
+  quick: 140,
+  standard: 220,
+  slow: 320,
+  ease: 'cubic-bezier(0.2, 0, 0, 1)',
+} as const;
+
+export const transition = (property: string, ms: number = motion.standard) =>
+  `${property} ${ms}ms ${motion.ease}`;
+
+/** The nav rail keeps its navy identity in both palettes; only the dark scheme deepens it so it recedes behind the canvas. */
+const railBase = {
+  text: '#F4F8FA',
+  soft: 'rgba(231, 242, 246, 0.76)',
+  muted: 'rgba(231, 242, 246, 0.48)',
+  faint: 'rgba(231, 242, 246, 0.58)',
+  hairline: 'rgba(231, 242, 246, 0.12)',
+  hover: 'rgba(255, 255, 255, 0.075)',
+  activeBg: 'rgba(53, 195, 174, 0.16)',
+  panelBg: 'rgba(255, 255, 255, 0.055)',
+  accent: '#35C3AE',
+  accentText: '#71E0CB',
+};
+
+export const NAV_RAIL = {
+  light: { ...railBase, solid: '#102B40', gradient: 'linear-gradient(180deg, #153A55 0%, #102B40 58%, #0D2638 100%)' },
+  dark: {
+    ...railBase,
+    solid: '#0C1E2E',
+    gradient: 'linear-gradient(180deg, #122A3E 0%, #0C1E2E 58%, #091826 100%)',
+    hairline: 'rgba(231, 242, 246, 0.16)',
+    hover: 'rgba(255, 255, 255, 0.09)',
+  },
+};
+
+/** Uneven motion is distracting, so every entrance uses this keyframe plus the tokens above. */
+export const riseIn = (delayMs = 0) => ({
+  animation: `lms-rise ${motion.slow}ms ${motion.ease} ${delayMs}ms both`,
+});
+
+/** A coach-mark target has to announce itself without anyone reading the text first. */
+export const pulse = () => ({
+  animation: `lms-pulse 1500ms ${motion.ease} infinite`,
+});
+
 export function createAppTheme(mode: PaletteMode) {
   const isDark = mode === 'dark';
+  const rail = NAV_RAIL[mode];
   const colors = isDark
     ? {
         background: '#111B22',
@@ -48,6 +98,10 @@ export function createAppTheme(mode: PaletteMode) {
       divider: colors.divider,
     },
     shape: { borderRadius: 12 },
+    transitions: {
+      duration: { shortest: 120, shorter: motion.quick, short: motion.standard, complex: motion.slow, enteringScreen: motion.standard, leavingScreen: motion.quick },
+      easing: { easeInOut: motion.ease, easeOut: motion.ease, easeIn: 'cubic-bezier(0.4, 0, 1, 1)' },
+    },
     typography: {
       fontFamily: '"Noto Sans Lao", "Segoe UI", Tahoma, Arial, sans-serif',
       h4: { fontWeight: 750, letterSpacing: '-0.035em' },
@@ -68,6 +122,23 @@ export function createAppTheme(mode: PaletteMode) {
           '::selection': {
             backgroundColor: isDark ? 'rgba(67, 198, 174, 0.32)' : 'rgba(12, 155, 138, 0.2)',
           },
+          '@keyframes lms-rise': {
+            from: { opacity: 0, transform: 'translateY(6px)' },
+            to: { opacity: 1, transform: 'none' },
+          },
+          '@keyframes lms-pulse': {
+            '0%, 100%': { transform: 'scale(1)', opacity: 1 },
+            '50%': { transform: 'scale(1.06)', opacity: 0.7 },
+          },
+          // Honour the OS setting: the shell stays functional, only the movement stops.
+          '@media (prefers-reduced-motion: reduce)': {
+            '*, *::before, *::after': {
+              transitionDuration: '0.01ms !important',
+              animationDuration: '0.01ms !important',
+              animationIterationCount: '1 !important',
+              scrollBehavior: 'auto !important',
+            },
+          },
         },
       },
       MuiPaper: {
@@ -85,7 +156,7 @@ export function createAppTheme(mode: PaletteMode) {
             boxShadow: isDark
               ? '0 8px 28px rgba(0, 0, 0, 0.14)'
               : '0 3px 14px rgba(23, 59, 87, 0.035)',
-            transition: 'box-shadow 160ms ease, transform 160ms ease',
+            transition: `${transition('box-shadow', motion.quick)}, ${transition('transform', motion.quick)}`,
           },
         },
       },
@@ -108,10 +179,11 @@ export function createAppTheme(mode: PaletteMode) {
       MuiDrawer: {
         styleOverrides: {
           paper: {
-            backgroundColor: '#102B40',
-            color: '#F4F8FA',
+            backgroundColor: rail.solid,
+            color: rail.text,
             border: 0,
-            backgroundImage: 'linear-gradient(180deg, #153A55 0%, #102B40 58%, #0D2638 100%)',
+            backgroundImage: rail.gradient,
+            transition: transition('width', motion.standard),
           },
         },
       },
@@ -121,7 +193,7 @@ export function createAppTheme(mode: PaletteMode) {
             minHeight: 38,
             borderRadius: 10,
             paddingInline: 15,
-            transition: 'transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease',
+            transition: `${transition('transform', motion.quick)}, ${transition('box-shadow', motion.quick)}, ${transition('background-color', motion.quick)}`,
             '&.MuiButton-containedPrimary': {
               boxShadow: isDark
                 ? '0 5px 14px rgba(98, 182, 208, 0.18)'
@@ -200,6 +272,7 @@ export function createAppTheme(mode: PaletteMode) {
 
 export const statusColor: Record<string, 'success' | 'warning' | 'error' | 'default' | 'info' | 'secondary'> = {
   ACTIVE: 'success',
+  LOCKED: 'error',
   CLOSED: 'info',
   WRITTEN_OFF: 'secondary',
   POSTED: 'success',
@@ -218,4 +291,7 @@ export const statusColor: Record<string, 'success' | 'warning' | 'error' | 'defa
   OVERDUE: 'error',
   PARTIAL: 'warning',
   PAID: 'success',
+  PLEDGED: 'success',
+  RELEASED: 'default',
+  APPLIED: 'success',
 };

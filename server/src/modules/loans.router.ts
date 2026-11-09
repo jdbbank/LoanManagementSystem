@@ -3,6 +3,7 @@ import { EntityManager } from 'typeorm';
 import { z } from 'zod';
 import { Loan } from '../entities/loan.entity';
 import { Customer } from '../entities/customer.entity';
+import { CustomerBankAccount } from '../entities/customer-bank-account.entity';
 import { LoanProduct } from '../entities/loan-product.entity';
 import { FinancialTransaction } from '../entities/financial-transaction.entity';
 import { FinancialTransactionLine } from '../entities/financial-transaction-line.entity';
@@ -10,6 +11,8 @@ import { CustomerCredit } from '../entities/customer-credit.entity';
 import { SettlementAgreement } from '../entities/settlement-agreement.entity';
 import {
   ComponentAmounts,
+  DisbursementChannel,
+  InterestMethod,
   LoanStatus,
   TransactionStatus,
   TransactionType,
@@ -22,12 +25,14 @@ import { validateBody } from '../middleware/error';
 import { asyncHandler } from '../utils/async-handler';
 import { badRequest, notFound, unprocessable } from '../utils/errors';
 import { round2, num } from '../utils/money';
-import { flatInterestTotal, termMonthsOf } from '../utils/period';
+import { decliningPeriodInterest, flatInterestTotal, termMonthsOf } from '../utils/period';
 import { pad } from '../utils/pad';
 import { writeAudit } from '../services/audit.service';
+import { assertReceivableAccount, maskAccountNumber } from '../services/bank-account.service';
 import { getKycPolicy } from '../services/kyc-policy.service';
 import { notifyLoanSubmitted } from '../services/notification-events.service';
 import { getLoanSchedule } from '../services/loan-schedule.service';
+import { getPayableNow } from '../services/payment-due.service';
 import { mergePenaltyPolicy } from '../services/penalty-policy.service';
 import { nextTransactionNo } from '../services/reference.service';
 import { balanceSnapshot, getBalances, totalOutstanding } from '../services/loan-balance.service';
@@ -49,10 +54,34 @@ const createLoanSchema = z
     termMonths: z.number().int().positive().max(600).optional(),
     disbursedAt: z.string().datetime().optional(),
     note: z.string().max(1000).optional(),
+    /** Optional at write-up: a branch that hands over cash records it later, or not at all. */
+    disbursementChannel: z.nativeEnum(DisbursementChannel).optional(),
+    disbursementBankAccountId: z.string().uuid().optional(),
+    disbursementReference: z.string().max(64).optional(),
   })
   .refine((body) => body.termValue === undefined || body.termUnit !== undefined, {
     message: 'termUnit is required when termValue is given',
   });
+
+/** The account rule is a business one, so it is raised by the handler as 422 exactly like loan creation. */
+const disbursementSchema = z.object({
+  channel: z.nativeEnum(DisbursementChannel),
+  bankAccountId: z.string().uuid().optional(),
+  reference: z.string().max(64).optional(),
+});
+
+/** The recorded hand-over of one loan, with the account shown only by its last digits. */
+function disbursementView(loan: Loan, account: CustomerBankAccount | null) {
+  return {
+    loanId: loan.id,
+    loanNumber: loan.loanNumber,
+    channel: loan.disbursementChannel ?? null,
+    bankAccountId: loan.disbursementBankAccountId ?? null,
+    bankName: account?.bankName ?? null,
+    accountNumber: account ? maskAccountNumber(account.accountNumber) : null,
+    reference: loan.disbursementReference ?? null,
+  };
+}
 
 /** How far back a disbursement may be dated; older money does not belong in this ledger. */
 const DISBURSEMENT_LOOKBACK_DAYS = 730;
@@ -147,6 +176,9 @@ export interface CreateLoanParams {
   termMonths?: number;
   disbursedAt?: string;
   note?: string | null;
+  disbursementChannel?: DisbursementChannel;
+  disbursementBankAccountId?: string;
+  disbursementReference?: string;
   userId: string;
   ip?: string | null;
   userAgent?: string | null;
@@ -163,6 +195,8 @@ export async function createLoanWithDisbursement(em: EntityManager, params: Crea
     termMonths,
     disbursedAt,
     note,
+    disbursementChannel,
+    disbursementReference,
     userId,
     ip,
     userAgent,
@@ -183,6 +217,18 @@ export async function createLoanWithDisbursement(em: EntityManager, params: Crea
   const customer = await em.findOneBy(Customer, { id: customerId });
   if (!customer) throw badRequest('Customer not found');
 
+  // A bank write-up names the account the money goes to; cash names none, so an account given alongside
+  // cash is a mistake rather than data — recording it would point the loan at an account it never used.
+  let disbursementAccount: CustomerBankAccount | null = null;
+  if (disbursementChannel === DisbursementChannel.BANK) {
+    if (!params.disbursementBankAccountId) {
+      throw unprocessable('A bank disbursement has to name the receiving account');
+    }
+    disbursementAccount = await assertReceivableAccount(em, customerId, params.disbursementBankAccountId);
+  } else if (disbursementChannel === DisbursementChannel.CASH && params.disbursementBankAccountId) {
+    throw unprocessable('A cash disbursement cannot carry a bank account');
+  }
+
   // KYC gate (configurable through /api/config/kyc): identity evidence must be verified first.
   const kycPolicy = await getKycPolicy(em);
   if (kycPolicy.blockDisbursementUntilVerified && customer.kycStatus !== KycStatus.VERIFIED) {
@@ -198,13 +244,19 @@ export async function createLoanWithDisbursement(em: EntityManager, params: Crea
   const effectiveUnit = termUnit ?? (termMonths !== undefined ? PeriodUnit.MONTH : product.termUnit);
   const effectiveValue = termValue ?? (termMonths !== undefined ? termMonths : product.termValue);
   const effectiveMonths = termMonthsOf(effectiveValue, effectiveUnit);
-  const interest = flatInterestTotal({
-    principal: principalAmount,
-    ratePercent: product.interestRate,
-    rateUnit: product.interestRatePeriod,
-    termValue: effectiveValue,
-    termUnit: effectiveUnit,
-  });
+  const interestMethod = product.interestMethod ?? InterestMethod.FLAT;
+  // FLAT bills the whole term in one lump at disbursement; DECLINING bills only the period that
+  // starts today and every later period as its own accrual, priced on the principal still owed.
+  const interest =
+    interestMethod === InterestMethod.DECLINING
+      ? decliningPeriodInterest(round2(principalAmount), product.interestRate, product.interestRatePeriod)
+      : flatInterestTotal({
+          principal: principalAmount,
+          ratePercent: product.interestRate,
+          rateUnit: product.interestRatePeriod,
+          termValue: effectiveValue,
+          termUnit: effectiveUnit,
+        });
 
   const count = await em.count(Loan);
   const loan = em.create(Loan, {
@@ -214,10 +266,12 @@ export async function createLoanWithDisbursement(em: EntityManager, params: Crea
     principalAmount: round2(principalAmount),
     interestRate: product.interestRate,
     interestRatePeriod: product.interestRatePeriod,
+    interestMethod,
     termValue: effectiveValue,
     termUnit: effectiveUnit,
     termMonths: effectiveMonths,
     penaltyPolicy: mergePenaltyPolicy(product.penaltyPolicy, {}),
+    earlySettlementFeePercent: product.earlySettlementFeePercent ?? 0,
     currency: product.currency,
     status: LoanStatus.ACTIVE,
     outstandingPenalty: 0,
@@ -225,6 +279,9 @@ export async function createLoanWithDisbursement(em: EntityManager, params: Crea
     outstandingPastPrincipal: round2(principalAmount),
     currentOutstanding: round2(principalAmount + interest),
     disbursedAt: disbursedAt ? new Date(disbursedAt) : new Date(),
+    disbursementChannel: disbursementChannel ?? null,
+    disbursementBankAccountId: disbursementAccount?.id ?? null,
+    disbursementReference: disbursementReference?.trim() || null,
   });
   await em.save(Loan, loan);
 
@@ -242,6 +299,8 @@ export async function createLoanWithDisbursement(em: EntityManager, params: Crea
     amount: round2(principalAmount + interest),
     currency: product.currency,
     componentAmounts,
+    // The first period's interest is billed by this transaction, so it owns periodIndex 1.
+    periodIndex: interestMethod === InterestMethod.DECLINING ? 1 : null,
     reason: note ? `Disbursement for loan ${loan.loanNumber} — ${note}` : `Disbursement for loan ${loan.loanNumber}`,
     createdBy: userId,
     postedBy: userId,
@@ -294,7 +353,7 @@ export async function createLoanWithDisbursement(em: EntityManager, params: Crea
     principalAmount: round2(principalAmount),
   });
 
-  return { loan, customer, product, tx };
+  return { loan, customer, product, tx, disbursement: disbursementView(loan, disbursementAccount) };
 }
 
 router.post(
@@ -303,7 +362,19 @@ router.post(
   validateBody(createLoanSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = req.user as AuthUser;
-    const { customerId, productId, principalAmount, termValue, termUnit, termMonths, disbursedAt, note } = req.body;
+    const {
+      customerId,
+      productId,
+      principalAmount,
+      termValue,
+      termUnit,
+      termMonths,
+      disbursedAt,
+      note,
+      disbursementChannel,
+      disbursementBankAccountId,
+      disbursementReference,
+    } = req.body;
 
     const result = await getDataSource().transaction((em) =>
       createLoanWithDisbursement(em, {
@@ -315,6 +386,9 @@ router.post(
         termMonths,
         disbursedAt,
         note,
+        disbursementChannel,
+        disbursementBankAccountId,
+        disbursementReference,
         userId: user.id,
         ip: req.ip,
         userAgent: req.headers['user-agent'],
@@ -325,6 +399,7 @@ router.post(
       data: {
         loan: { ...result.loan, customer: result.customer, product: result.product, outstanding: previewOutstanding(result.loan) },
         disbursementTransaction: result.tx,
+        disbursement: result.disbursement,
       },
     });
   })
@@ -357,6 +432,10 @@ router.get(
     ]);
     const [transactions, transactionTotal] = transactionResult;
 
+    const account = loan.disbursementBankAccountId
+      ? await em.getRepository(CustomerBankAccount).findOneBy({ id: loan.disbursementBankAccountId })
+      : null;
+
     res.json({
       data: {
         loan: {
@@ -365,12 +444,67 @@ router.get(
           product,
           outstanding: previewOutstanding(loan),
         },
+        disbursement: disbursementView(loan, account),
         transactions,
         transactionPagination: { page, limit, total: transactionTotal },
         credit,
         settlements,
       },
     });
+  })
+);
+
+/**
+ * Records how the disbursed money was handed over, after the loan row and its disbursement entry
+ * already exist. Nothing here moves a balance, so it needs no approval — it is the bookkeeping that
+ * lets a later dispute tell a bank transfer from a cash payment.
+ */
+router.patch(
+  '/:id/disbursement',
+  requireRole(...OPERATOR_ROLES),
+  validateBody(disbursementSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user as AuthUser;
+    const body = req.body as z.infer<typeof disbursementSchema>;
+
+    const result = await getDataSource().transaction(async (em) => {
+      const loan = await em.findOne(Loan, { where: { id: req.params.id }, lock: { mode: 'pessimistic_write' } });
+      if (!loan) throw notFound('Loan');
+
+      let account: CustomerBankAccount | null = null;
+      if (body.channel === DisbursementChannel.BANK) {
+        if (!body.bankAccountId) throw unprocessable('A bank disbursement has to name the receiving account');
+        account = await assertReceivableAccount(em, loan.customerId, body.bankAccountId);
+      } else if (body.bankAccountId) {
+        throw unprocessable('A cash disbursement cannot carry a bank account');
+      }
+
+      const previous = loan.disbursementChannel ?? 'UNRECORDED';
+      loan.disbursementChannel = body.channel;
+      // Cash clears the account: keeping the old one would say the money went somewhere it did not.
+      loan.disbursementBankAccountId = account?.id ?? null;
+      loan.disbursementReference = body.reference?.trim() || null;
+      await em.save(Loan, loan);
+
+      await writeAudit(em, {
+        action: 'LOAN_DISBURSEMENT_CHANNEL_SET',
+        loanId: loan.id,
+        customerId: loan.customerId,
+        userId: user.id,
+        previousStatus: previous,
+        newStatus: body.channel,
+        reason:
+          `Loan ${loan.loanNumber}: ${body.channel}` +
+          `${account ? ` into ${account.bankName} ${maskAccountNumber(account.accountNumber)}` : ' as cash'}` +
+          `${body.reference ? `, reference ${body.reference}` : ''}`,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      return disbursementView(loan, account);
+    });
+
+    res.json({ data: result });
   })
 );
 
@@ -406,6 +540,21 @@ router.get(
     if (!loan) throw notFound('Loan');
 
     res.json({ data: await getLoanSchedule(em.manager, id, asOf) });
+  })
+);
+
+router.get(
+  '/:id/payable-now',
+  asyncHandler(async (req: Request, res: Response) => {
+    const rawAsOf = typeof req.query.asOf === 'string' ? req.query.asOf : '';
+    const asOf = rawAsOf ? new Date(rawAsOf) : new Date();
+    if (Number.isNaN(asOf.getTime())) throw badRequest('asOf must be a valid date');
+
+    const em = getDataSource();
+    const loan = await em.getRepository(Loan).findOneBy({ id: req.params.id });
+    if (!loan) throw notFound('Loan');
+
+    res.json({ data: await getPayableNow(em.manager, loan.id, asOf) });
   })
 );
 

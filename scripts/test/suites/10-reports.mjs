@@ -656,7 +656,11 @@ export default async function suite(ctx) {
     const loanR = loanRes.json.data.loan;
     createdLoans.push(loanR.id);
 
-    const made = await api('POST', '/api/payment-requests', { token: tokens.op1, body: { loanId: loanR.id, cashAmount: 1200000 } });
+    // The collection gate only lets staff settle instalments that have arrived, and this loan is a
+    // couple of months into a six-month term, so the payment takes exactly what payable-now reports.
+    const payableR = (await api('GET', `/api/loans/${loanR.id}/payable-now`)).json?.data ?? {};
+    if (!(Number(payableR.maxPayable) > 0)) throw new Error(`payable-now returned ${JSON.stringify(payableR)}`);
+    const made = await api('POST', '/api/payment-requests', { token: tokens.op1, body: { loanId: loanR.id, cashAmount: payableR.maxPayable } });
     if (made.status !== 201) throw new Error(`payment request failed ${made.status} ${errorMessage(made)}`);
     const approved = await api('POST', `/api/payment-requests/${made.json.data.request.id}/approve`, { token: tokens.checker1, body: {} });
     if (approved.status !== 200) throw new Error(`approve failed ${approved.status} ${errorMessage(approved)}`);

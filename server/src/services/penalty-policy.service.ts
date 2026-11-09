@@ -1,6 +1,6 @@
 import { DEFAULT_PENALTY_POLICY, PenaltyMode, PenaltyPolicy, PeriodUnit } from '../entities/types';
 import { unprocessable } from '../utils/errors';
-import { num } from '../utils/money';
+import { num, round2 } from '../utils/money';
 import { DAYS_PER_UNIT } from '../utils/period';
 
 /**
@@ -45,6 +45,17 @@ export function assertPenaltyPolicyMakesSense(policy: PenaltyPolicy): void {
   if (policy.mode !== PenaltyMode.NONE && DAYS_PER_UNIT[policy.period] <= 0) {
     throw unprocessable(`Unknown penalty period unit: ${String(policy.period)}`);
   }
+}
+
+/**
+ * The loan's own penalty ceiling in money, or 0 when the policy sets no ceiling.
+ * One formula for both paths that can bill a penalty: the accrual schedule trims its suggestion
+ * to it and the posting engine refuses a manual charge that would cross it.
+ */
+export function penaltyCeilingOf(policy: PenaltyPolicy, principalAmount: number): number {
+  const capPercent = num(policy.maxPercentOfPrincipal);
+  if (capPercent <= 0) return 0;
+  return round2((num(principalAmount) * capPercent) / 100);
 }
 
 /** One-line human-readable summary, used for audit reasons and the product table. */

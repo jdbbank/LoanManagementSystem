@@ -8,6 +8,8 @@ import {
   ComponentAmounts,
   ComponentType,
   DEFAULT_PENALTY_POLICY,
+  InterestMethod,
+  LoanStatus,
   PenaltyMode,
   PenaltyPolicy,
   PeriodUnit,
@@ -24,6 +26,8 @@ import {
   splitAcross,
   termMonthsOf,
 } from '../utils/period';
+import { dueInterestPeriods } from './interest-accrual.service';
+import { penaltyCeilingOf } from './penalty-policy.service';
 
 /**
  * Installment view of a loan.
@@ -38,6 +42,7 @@ import {
 const CHARGE_TYPES: TransactionType[] = [
   TransactionType.DISBURSEMENT,
   TransactionType.PENALTY,
+  TransactionType.INTEREST_ACCRUAL,
   TransactionType.ADJUSTMENT,
 ];
 
@@ -82,6 +87,8 @@ export interface LoanSchedulePeriod {
 export interface LoanScheduleTotals {
   principalCharged: number;
   interestCharged: number;
+  /** On a DECLINING loan: the next period's interest that has started and is not billed yet. */
+  interestSuggested: number;
   penaltyCharged: number;
   penaltyRelieved: number;
   penaltyAccrued: number;
@@ -111,6 +118,7 @@ export interface LoanSchedule {
   disbursedAt: Date;
   interestRate: number;
   interestRatePeriod: PeriodUnit;
+  interestMethod: InterestMethod;
   termValue: number;
   termUnit: PeriodUnit;
   termMonths: number;
@@ -156,6 +164,52 @@ async function readComponentSums(em: EntityManager, loanId: string): Promise<Com
   return { charged, paid, relieved };
 }
 
+/**
+ * Interest the ledger bills for each numbered period, as booked: the disbursement that owns
+ * period 1 and every posted INTEREST_ACCRUAL at its own periodIndex. Loans priced flat bill one
+ * lump with no period, so the map comes back empty and the caller keeps splitting the lump.
+ */
+async function readInterestByPeriod(em: EntityManager, loanId: string): Promise<Map<number, number>> {
+  const rows: Array<{ periodIndex: string | number; amount: string | number }> = await em
+    .createQueryBuilder()
+    .select('tx.periodIndex', 'periodIndex')
+    .addSelect('line.amount', 'amount')
+    .from(FinancialTransactionLine, 'line')
+    .innerJoin(FinancialTransaction, 'tx', 'tx.id = line.transactionId')
+    .where('tx.loanId = :loanId', { loanId })
+    .andWhere('tx.status = :status', { status: TransactionStatus.POSTED })
+    .andWhere('tx.transactionType IN (:...types)', {
+      types: [TransactionType.DISBURSEMENT, TransactionType.INTEREST_ACCRUAL],
+    })
+    .andWhere('line.component = :interest', { interest: ComponentType.PAST_INTEREST })
+    .andWhere('tx.periodIndex IS NOT NULL')
+    .getRawMany();
+
+  const byPeriod = new Map<number, number>();
+  for (const row of rows) {
+    const index = num(row.periodIndex);
+    byPeriod.set(index, round2(num(byPeriod.get(index) ?? 0) + Math.abs(num(row.amount))));
+  }
+  return byPeriod;
+}
+
+/**
+ * One interest figure per period that always adds back up to what the ledger charged: booked
+ * periods land where the ledger says they belong, and anything charged without a period
+ * (a correction, a lump sum) is spread over the term.
+ */
+export function placeInterestOnPeriods(byPeriod: Map<number, number>, totalCharged: number, count: number): number[] {
+  const shares = new Array<number>(count).fill(0);
+  let placed = 0;
+  for (const [index, amount] of byPeriod) {
+    if (index < 1 || index > count) continue;
+    shares[index - 1] = round2(shares[index - 1] + amount);
+    placed = round2(placed + amount);
+  }
+  const unplaced = splitAcross(round2(totalCharged - placed), count);
+  return shares.map((value, i) => round2(value + unplaced[i]));
+}
+
 /** Penalties are stored in months-of-term order; the loan's own term fields are the snapshot. */
 export function resolvePenaltyPolicy(loan: Loan, product?: LoanProduct | null): PenaltyPolicy {
   return loan.penaltyPolicy ?? product?.penaltyPolicy ?? DEFAULT_PENALTY_POLICY;
@@ -183,9 +237,8 @@ export function penaltyForPeriod(
 
 /** Apply the product ceiling by trimming the newest periods first. */
 export function capAccruedPenalties(periods: LoanSchedulePeriod[], policy: PenaltyPolicy, principal: number): void {
-  const capPercent = num(policy.maxPercentOfPrincipal);
-  if (capPercent <= 0) return;
-  const cap = round2((principal * capPercent) / 100);
+  const cap = penaltyCeilingOf(policy, principal);
+  if (cap <= 0) return;
   let total = round2(periods.reduce((acc, p) => acc + p.penaltyAccrued, 0));
   for (let i = periods.length - 1; i >= 0 && total > cap; i -= 1) {
     const trimmed = Math.min(periods[i].penaltyAccrued, round2(total - cap));
@@ -209,6 +262,15 @@ export function spreadBilledPenalty(periods: LoanSchedulePeriod[], billed: numbe
   }
 }
 
+/**
+ * The single definition of "this period may be collected": a period opens `leadDays` before its due
+ * date, which is exactly the window that turns it DUE below. The schedule passes the product's grace
+ * window and the collection rules pass their own, so no caller repeats the arithmetic.
+ */
+export function isPeriodArrived(period: LoanSchedulePeriod, leadDays: number, asOf: Date): boolean {
+  return period.dueDate.getTime() - leadDays * 86_400_000 <= asOf.getTime();
+}
+
 export function periodStatus(period: LoanSchedulePeriod, graceDays: number, asOf: Date): SchedulePeriodStatus {
   const scheduledDue = round2(period.principalDue + period.interestDue);
   const settled = round2(period.paid + period.relieved);
@@ -216,7 +278,7 @@ export function periodStatus(period: LoanSchedulePeriod, graceDays: number, asOf
   // Past the due date a period is overdue whether or not part of it has been paid.
   if (period.overdueDays > 0) return SchedulePeriodStatus.OVERDUE;
   if (settled > EPS) return SchedulePeriodStatus.PARTIAL;
-  if (period.dueDate.getTime() - graceDays * 86_400_000 <= asOf.getTime()) return SchedulePeriodStatus.DUE;
+  if (isPeriodArrived(period, graceDays, asOf)) return SchedulePeriodStatus.DUE;
   return SchedulePeriodStatus.PENDING;
 }
 
@@ -238,9 +300,17 @@ export async function getLoanSchedule(
   const policy = resolvePenaltyPolicy(loan, product);
   const { termValue, termUnit } = resolveTerm(loan);
   const count = periodCount(termValue, termUnit);
+  const interestMethod = loan.interestMethod ?? product?.interestMethod ?? InterestMethod.FLAT;
+  // Declining-balance interest is booked period by period, so the schedule reads the period each
+  // charge belongs to instead of dividing a lump sum; a flat loan still splits its one booking.
+  const interestByPeriod =
+    interestMethod === InterestMethod.DECLINING ? await readInterestByPeriod(em, loan.id) : new Map<number, number>();
 
   const principalShares = splitAcross(charged.PAST_PRINCIPAL, count);
-  const interestShares = splitAcross(charged.PAST_INTEREST, count);
+  const interestShares =
+    interestMethod === InterestMethod.DECLINING
+      ? placeInterestOnPeriods(interestByPeriod, charged.PAST_INTEREST, count)
+      : splitAcross(charged.PAST_INTEREST, count);
 
   // Cash and staff relief are both applied oldest period first, mirroring the locked allocation
   // order one level down: the ledger decides how much of the debt is gone, the schedule decides
@@ -316,9 +386,17 @@ export async function getLoanSchedule(
     maturityDate: periods[periods.length - 1]?.dueDate ?? disbursedAt,
   };
 
+  // What the accrual action would raise for this loan right now, so the schedule and the
+  // operator's "due to accrue" list can never disagree about the next charge.
+  const interestSuggested =
+    interestMethod === InterestMethod.DECLINING && loan.status === LoanStatus.ACTIVE
+      ? ((await dueInterestPeriods(em, loan, asOf))?.[0]?.amount ?? 0)
+      : 0;
+
   const totals: LoanScheduleTotals = {
     principalCharged: charged.PAST_PRINCIPAL,
     interestCharged: charged.PAST_INTEREST,
+    interestSuggested,
     penaltyCharged: charged.PENALTY,
     penaltyRelieved: relieved.PENALTY,
     penaltyAccrued,
@@ -340,6 +418,7 @@ export async function getLoanSchedule(
     disbursedAt,
     interestRate: loan.interestRate,
     interestRatePeriod: loan.interestRatePeriod ?? PeriodUnit.YEAR,
+    interestMethod,
     termValue,
     termUnit,
     termMonths: termMonthsOf(termValue, termUnit),

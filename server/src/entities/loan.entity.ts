@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
-import { decimalColumn, LoanStatus, PenaltyPolicy, PeriodUnit } from './types';
+import { decimalColumn, DisbursementChannel, InterestMethod, LoanStatus, PenaltyPolicy, PeriodUnit } from './types';
 
 /**
  * Hybrid outstanding model (locked requirement section 3):
@@ -36,6 +36,10 @@ export class Loan {
   @Column({ type: 'enum', enum: PeriodUnit, default: PeriodUnit.YEAR })
   interestRatePeriod!: PeriodUnit;
 
+  /** Snapshot of the product's pricing method — a later product change never re-prices this loan. */
+  @Column({ type: 'enum', enum: InterestMethod, default: InterestMethod.FLAT })
+  interestMethod!: InterestMethod;
+
   /** Snapshot of the term as configured on the product. */
   @Column({ type: 'int', default: 0 })
   termValue!: number;
@@ -50,6 +54,13 @@ export class Loan {
   /** Penalty terms frozen at disbursement, exactly like the rate (locked section 2.1 spirit). */
   @Column({ type: 'simple-json', nullable: true })
   penaltyPolicy!: PenaltyPolicy | null;
+
+  /**
+   * The product's early-settlement fee frozen at disbursement, so re-pricing the product later can
+   * never add a charge to a contract the customer already signed. 0 = this loan pays no fee.
+   */
+  @Column(decimalColumn({ precision: 9, scale: 4 }))
+  earlySettlementFeePercent!: number;
 
   @Column({ type: 'varchar', length: 3, default: 'LAK' })
   currency!: string;
@@ -68,6 +79,21 @@ export class Loan {
 
   @Column({ type: 'datetime', nullable: true })
   disbursedAt!: Date | null;
+
+  /**
+   * How the money left the branch. Null means the loan predates this record or staff have not said
+   * yet — it is never inferred, because "we assume a transfer" is exactly what the slip exists to prove.
+   */
+  @Column({ type: 'enum', enum: DisbursementChannel, nullable: true })
+  disbursementChannel!: DisbursementChannel | null;
+
+  /** The registered account the money was sent to. Set only when the channel is BANK. */
+  @Column({ type: 'uuid', nullable: true })
+  disbursementBankAccountId!: string | null;
+
+  /** The bank's own reference for the transfer, or the receipt number when the money was paid in cash. */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  disbursementReference!: string | null;
 
   @CreateDateColumn()
   createdAt!: Date;

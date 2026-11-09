@@ -4,3 +4,9 @@ dist
 *.log
 logs/
 .DS_Store
+
+# mysqldump output holds row data, KYC document blobs and password hashes.
+backups/
+
+# Throwaway capture files from debugging a test run.
+scripts/test/tmp-*

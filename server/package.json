@@ -8,7 +8,11 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "db:schema": "node dist/sync-schema.js",
+    "db:migrate": "typeorm -d dist/cli-datasource.js migration:run",
+    "db:migrate:status": "typeorm -d dist/cli-datasource.js migration:show",
+    "db:migrate:revert": "typeorm -d dist/cli-datasource.js migration:revert",
+    "db:schema:diff": "npm run build && typeorm -d dist/cli-datasource.js schema:log",
+    "db:migration:generate": "npm run build && typeorm -d dist/cli-datasource.js migration:generate",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"

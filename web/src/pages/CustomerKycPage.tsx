@@ -7,7 +7,6 @@ import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -31,10 +30,12 @@ import { api, unwrap } from '../api/client';
 import { KycDocumentType, KycStatus, type KycDocument, type KycState } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { OPERATOR_ROLES, canApprove, isAdmin } from '../auth/roles';
-import KycImageView from '../components/KycImageView';
+import BlobImageView from '../components/BlobImageView';
+import CustomerBankAccountsPanel from '../components/CustomerBankAccountsPanel';
 import KycUploadForm from '../components/KycUploadForm';
 import PageHeader from '../components/PageHeader';
 import StatusChip from '../components/StatusChip';
+import { LoadingPanel } from '../components/LoadingOverlay';
 
 type ReviewAction = 'verify' | 'reject' | 'reopen';
 
@@ -87,7 +88,7 @@ export default function CustomerKycPage() {
   });
 
   if (!id) return null;
-  if (kycQuery.isLoading) return <CircularProgress />;
+  if (kycQuery.isLoading) return <LoadingPanel label={t('common.loading')} />;
   if (kycQuery.isError) return <Alert severity="error">{(kycQuery.error as Error).message}</Alert>;
   if (!kycQuery.data) return null;
 
@@ -335,11 +336,22 @@ export default function CustomerKycPage() {
         </CardContent>
       </Card>
 
+      <CustomerBankAccountsPanel customerId={id} />
+
       <Dialog open={Boolean(viewing)} onClose={() => setViewing(null)} fullWidth maxWidth="sm">
         <DialogTitle>
           {viewing ? `${typeLabel(viewing.documentType)} — ${viewing.fileName}` : t('kyc.viewImage')}
         </DialogTitle>
-        <DialogContent>{viewing && <KycImageView customerId={id} documentId={viewing.id} />}</DialogContent>
+        <DialogContent>
+          {viewing && (
+            <BlobImageView
+              path={`/customers/${id}/kyc/documents/${viewing.id}/content`}
+              alt={viewing.fileName}
+              loadingLabel={t('kyc.imageLoading')}
+              errorLabel={t('kyc.imageError')}
+            />
+          )}
+        </DialogContent>
         <DialogActions>
           <Button onClick={() => setViewing(null)}>{t('common.close')}</Button>
         </DialogActions>

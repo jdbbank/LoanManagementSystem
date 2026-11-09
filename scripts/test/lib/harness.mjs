@@ -25,8 +25,8 @@ function envFile() {
 export const SERVER_ENV = envFile();
 export const JWT_SECRET = process.env.JWT_SECRET ?? SERVER_ENV.JWT_SECRET;
 
-// The outbox stores OTP/reset-link bodies sealed with AES-256-GCM. The suites open them with the
-// same key to prove the mailer still gets a usable message while the table holds no plain text.
+// The outbox stores its content sealed with AES-256-GCM. The suites open it with the same key to
+// prove the mailer still gets a usable message while the table holds no plain text.
 const SEAL_PREFIX = 'sealed:v1:';
 const SEAL_KEY = createHash('sha256')
   .update(process.env.NOTIFY_SECRET_KEY ?? SERVER_ENV.NOTIFY_SECRET_KEY ?? 'change-me-in-production-notify-sealing-key')
@@ -41,6 +41,19 @@ export function unseal(value) {
   decipher.setAuthTag(Buffer.from(tag, 'base64'));
   return Buffer.concat([decipher.update(Buffer.from(data, 'base64')), decipher.final()]).toString('utf8');
 }
+
+/**
+ * `enqueueNotification` seals the payload of EVERY event type, not only the reset secrets, so a
+ * payload read has to open it here: `JSON_EXTRACT(payload, '$.x')` on `sealed:v1:` text is not valid
+ * JSON and quietly returns NULL, which turns a payload assertion into a comparison of nulls.
+ */
+export const payloadOf = (row) => {
+  try {
+    return JSON.parse(unseal(String(row?.payload ?? '')));
+  } catch {
+    return {};
+  }
+};
 
 // --------------------------------------------------------------------------- HTTP
 export async function api(method, path, { token, body, form, headers, binary = false } = {}) {
@@ -148,11 +161,77 @@ export async function openDb() {
 export const rows = (conn, sql, params) => conn.query(sql, params).then(([r]) => r);
 
 /**
+ * Reads a login token's claims without verifying it — the suites already trust the secret, they
+ * need the exact mint instant to pin the revocation boundary against `passwordChangedAt`.
+ */
+export const jwtClaims = (token) => {
+  try {
+    return JSON.parse(Buffer.from(String(token).split('.')[1] ?? '', 'base64url').toString('utf8'));
+  } catch {
+    return {};
+  }
+};
+
+/** MySQL DATETIME text in UTC, milliseconds kept, for a suite that writes an exact instant. */
+export const utcSql = (millis) => new Date(millis).toISOString().slice(0, 23).replace('T', ' ');
+
+/**
  * Gives in-flight server work a beat to land before a cleanup check. Side effects such as
  * outbox rows and audit trails can commit just after the response returns, and a purge that
  * runs too early then leaves rows behind that the row-count check reports as suite dirt.
  */
 export const settle = (ms = 1500) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * `system_config` deliberately survives reset-db, so nothing may assume the policy its cases were
+ * written against — an earlier suite, or a branch's own admin, can have narrowed it. Pin the listed
+ * namespaces to the shipped defaults the server itself reports and hand back the values that were live
+ * before pinning plus a `restore()` (idempotent) that puts them back.
+ *
+ * The defaults come from the API rather than the test files on purpose: a second copy of the shipped
+ * numbers here would rot the day `server/src/config/env.ts` changes. Approval thresholds are excluded —
+ * the server publishes no defaults for them, so pinning them would mean hard-coding product values.
+ */
+export async function pinPolicies(callApi, namespaces) {
+  const pins = [];
+  try {
+    for (const namespace of namespaces) {
+      const view = (await callApi('GET', `/api/config/${namespace}`)).json?.data;
+      if (!view?.defaults) throw new Error(`GET /api/config/${namespace} returned no defaults`);
+      const pinned = await callApi('PUT', `/api/config/${namespace}`, { body: view.defaults });
+      if (pinned.status !== 200) {
+        throw new Error(`pinning ${namespace} to its defaults failed: HTTP ${pinned.status} ${errorMessage(pinned)}`);
+      }
+      pins.push({ namespace, defaults: view.defaults, found: view.policy });
+    }
+  } catch (err) {
+    await restorePins(callApi, pins);
+    throw err;
+  }
+  return {
+    defaults: Object.fromEntries(pins.map((p) => [p.namespace, p.defaults])),
+    found: Object.fromEntries(pins.map((p) => [p.namespace, p.found])),
+    restore: () => restorePins(callApi, pins),
+  };
+}
+
+const restorePins = (callApi, pins) =>
+  Promise.all(
+    pins
+      .splice(0)
+      .reverse()
+      .map((p) => callApi('PUT', `/api/config/${p.namespace}`, { body: p.found })),
+  );
+
+/** Runs `body(defaults)` with every listed namespace pinned, restoring even if a case throws. */
+export async function withPinnedPolicies(callApi, namespaces, body) {
+  const pins = await pinPolicies(callApi, namespaces);
+  try {
+    return await body(pins.defaults);
+  } finally {
+    await pins.restore();
+  }
+}
 
 // --------------------------------------------------------------------- identity map
 export const USER_NAMES = {

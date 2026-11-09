@@ -5,6 +5,8 @@ import {
   allocateComponents,
   billedInterestCents,
   buildSchedule,
+  decliningPeriodInterestCents,
+  decliningPeriods,
   emptyComponents,
   fmt,
   newLoanState,
@@ -168,7 +170,7 @@ ok('S2 settlement payment settles only what was paid, shortfall survives', () =>
   assert.equal(state.status, 'ACTIVE');
 });
 
-ok('Interest is flat, billed once, in the unit the product declares', () => {
+ok('FLAT interest is billed once, in the unit the product declares', () => {
   assert.equal(
     fmt(billedInterestCents({ principalCents: toCents(1000000), ratePercent: 1.5, rateUnit: 'MONTH', termValue: 12, termUnit: 'MONTH' })),
     '180000.00',
@@ -177,6 +179,75 @@ ok('Interest is flat, billed once, in the unit the product declares', () => {
     fmt(billedInterestCents({ principalCents: toCents(1000000), ratePercent: 18, rateUnit: 'YEAR', termValue: 1, termUnit: 'YEAR' })),
     '180000.00',
   );
+});
+
+ok('DECLINING interest prices one period on the balance that period opens with', () => {
+  assert.equal(
+    fmt(decliningPeriodInterestCents({ outstandingPrincipalCents: toCents(12000000), ratePercent: 1.2, rateUnit: 'MONTH' })),
+    '144000.00',
+  );
+  // Once 500000 of principal is repaid the next period is priced on 11500000, not on 12000000.
+  assert.equal(
+    fmt(decliningPeriodInterestCents({ outstandingPrincipalCents: toCents(11500000), ratePercent: 1.2, rateUnit: 'MONTH' })),
+    '138000.00',
+  );
+  // 18%/year is the locked 1.5%/month under a different name.
+  assert.equal(
+    decliningPeriodInterestCents({ outstandingPrincipalCents: toCents(1000000), ratePercent: 18, rateUnit: 'YEAR' }),
+    decliningPeriodInterestCents({ outstandingPrincipalCents: toCents(1000000), ratePercent: 1.5, rateUnit: 'MONTH' }),
+  );
+  assert.equal(decliningPeriodInterestCents({ outstandingPrincipalCents: 0, ratePercent: 1.2, rateUnit: 'MONTH' }), 0);
+  assert.equal(decliningPeriodInterestCents({ outstandingPrincipalCents: -1, ratePercent: 1.2, rateUnit: 'MONTH' }), 0);
+});
+
+ok('DECLINING installments: equal principal, falling interest, well below the FLAT lump', () => {
+  const periods = decliningPeriods({
+    principalCents: toCents(12000000),
+    ratePercent: 1.2,
+    rateUnit: 'MONTH',
+    termValue: 24,
+    termUnit: 'MONTH',
+    startIso: '2026-01-15',
+  });
+  assert.equal(periods.length, 24);
+  assert.equal(fmt(periods[0].principalCents), '500000.00');
+  assert.equal(fmt(periods[0].installmentCents), '644000.00');
+  assert.equal(fmt(periods[23].principalCents), '500000.00');
+  assert.equal(fmt(periods[23].interestCents), '6000.00');
+  assert.equal(fmt(periods[23].installmentCents), '506000.00');
+  assert.equal(periods.reduce((s, p) => s + p.principalCents, 0), toCents(12000000));
+  assert.equal(periods.reduce((s, p) => s + p.interestCents, 0), toCents(1800000));
+  assert.ok(periods.every((p, i) => i === 0 || p.installmentCents < periods[i - 1].installmentCents));
+  // The same loan priced FLAT for the whole term costs almost twice as much in interest.
+  assert.equal(
+    fmt(billedInterestCents({ principalCents: toCents(12000000), ratePercent: 1.2, rateUnit: 'MONTH', termValue: 24, termUnit: 'MONTH' })),
+    '3456000.00',
+  );
+});
+
+ok('DECLINING principal shares still sum exactly when the term does not divide', () => {
+  const periods = decliningPeriods({
+    principalCents: toCents(1000000),
+    ratePercent: 1.5,
+    rateUnit: 'MONTH',
+    termValue: 7,
+    termUnit: 'MONTH',
+    startIso: '2026-01-31',
+  });
+  assert.equal(periods.reduce((s, p) => s + p.principalCents, 0), toCents(1000000));
+  assert.equal(periods[0].dueDate, '2026-02-28');
+  assert.equal(periods[6].dueDate, '2026-08-31');
+});
+
+ok('An interest accrual is a charge, and never lands on a loan that has stopped', () => {
+  const state = newLoanState('L9', 'C1', { ...emptyComponents(), PAST_PRINCIPAL: toCents(1000000) }, toCents(1000000));
+  postEvent(state, { type: 'INTEREST_ACCRUAL', amountCents: toCents(12000), postedAtIso: '2026-02-01' });
+  assert.equal(fmt(state.components.PAST_INTEREST), '12000.00');
+  assert.equal(fmt(totalOf(state.components)), '1012000.00');
+  assert.throws(() => postEvent(state, { type: 'INTEREST_ACCRUAL', amountCents: 0, postedAtIso: '2026-03-01' }), /positive charge/);
+  postEvent(state, { type: 'PAYMENT', amountCents: toCents(1012000), postedAtIso: '2026-03-01' });
+  assert.equal(state.status, 'CLOSED');
+  assert.throws(() => postEvent(state, { type: 'INTEREST_ACCRUAL', amountCents: toCents(12000), postedAtIso: '2026-04-01' }), /CLOSED loan/);
 });
 
 ok('Installments sum back to the exact principal and interest', () => {

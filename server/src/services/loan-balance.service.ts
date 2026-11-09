@@ -32,7 +32,8 @@ export const totalOutstanding = (b: ComponentAmounts): number =>
 /**
  * Loan status after a POSTED transaction — driven by financial truth only (LOCKED sections 14, 15, 18, 19).
  *
- * - PAYMENT / SETTLEMENT_PAYMENT / WAIVER / ADJUSTMENT / PENALTY / PAYMENT_REVERSAL / DISBURSEMENT:
+ * - PAYMENT / SETTLEMENT_PAYMENT / WAIVER / ADJUSTMENT / PENALTY / INTEREST_ACCRUAL /
+ *   PAYMENT_REVERSAL / DISBURSEMENT:
  *   all payable components zero -> CLOSED; any component > 0 -> ACTIVE.
  *   (Closed loan + posted reversal with outstanding > 0 reopens automatically; WRITTEN_OFF
  *   loans with zero outstanding keep their distinct status.)

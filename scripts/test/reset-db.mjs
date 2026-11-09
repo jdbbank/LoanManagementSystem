@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Destructive helper for the pre-production test run. Truncates data rows only:
-// the project has no migration files (schema comes from TypeORM synchronize), so
-// DDL is never touched here.
+// the table layout belongs to the migrations in server/src/migrations, so DDL is
+// never touched here — an empty schema is fixed with `npm run db:migrate -w server`.
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -18,7 +18,21 @@ const BACKUP_DIR = process.env.LOAN_BACKUP_DIR
 // Name the operator confirmed for this test run. Anything else must abort.
 const EXPECTED_DB = 'loan_management';
 const ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', 'host.docker.internal', 'loan-ms-mysql', 'mysql']);
-const PROTECTED_TABLES = ['system_config', 'email_templates'];
+/**
+ * Never truncated, not even with --wipe-config. This table is not data: it is the record of which
+ * migrations built the layout that is still sitting in the schema. Empty it and `db:migrate` reads the
+ * existing tables as unbuilt, replays BaselineSchema's CREATE TABLE against them and fails.
+ */
+const SCHEMA_BOOKKEEPING = ['schema_migrations'];
+/** Policy rows the reset keeps unless the operator asks for a full wipe; the server reseeds them. */
+const CONFIG_TABLES = ['system_config', 'email_templates'];
+/**
+ * The organisation rows `users.tenantId` points at. Written by a migration, not by data loading, and
+ * never re-created by anything that runs after a reset — so wiping them would leave the server with no
+ * tenant to resolve and every sign-in answering 503. Kept even under --wipe-config for the same reason
+ * `schema_migrations` is kept: this is bookkeeping the schema depends on, not data.
+ */
+const TENANT_TABLES = ['tenants'];
 const MAX_BACKUP_AGE_MS = 30 * 60 * 1000;
 
 const die = (msg) => {
@@ -100,7 +114,7 @@ async function main() {
   );
 
   const wipeConfig = has('wipe-config');
-  const skip = wipeConfig ? [] : PROTECTED_TABLES;
+  const skip = [...SCHEMA_BOOKKEEPING, ...TENANT_TABLES, ...(wipeConfig ? [] : CONFIG_TABLES)];
 
   await assertServerStopped(db);
 
@@ -122,7 +136,7 @@ async function main() {
         WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME`,
       [db.name],
     );
-    if (rows.length === 0) die(`database ${db.name} has no base tables — has synchronize not run yet?`);
+    if (rows.length === 0) die(`database ${db.name} has no base tables — run: npm run db:migrate -w server`);
 
     const targets = rows.map((r) => r.t).filter((t) => !skip.includes(t));
     const kept = rows.map((r) => r.t).filter((t) => skip.includes(t));

@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { EntityManager } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 import { z } from 'zod';
 import { ApprovalWorkflow } from '../entities/approval-workflow.entity';
 import { ApprovalStep } from '../entities/approval-step.entity';
+import { Customer } from '../entities/customer.entity';
 import { FinancialTransaction } from '../entities/financial-transaction.entity';
 import { FinancialTransactionLine } from '../entities/financial-transaction-line.entity';
 import { Loan } from '../entities/loan.entity';
@@ -22,6 +23,7 @@ import { badRequest, notFound, unprocessable } from '../utils/errors';
 import { EPS, num, round2 } from '../utils/money';
 import { getBalances } from '../services/loan-balance.service';
 import { getLoanSchedule } from '../services/loan-schedule.service';
+import { listDueInterest } from '../services/interest-accrual.service';
 import { describePenaltyPolicy } from '../services/penalty-policy.service';
 import { createWorkflow } from '../services/approval.service';
 import { adjustmentMagnitude } from '../services/adjustment.service';
@@ -56,6 +58,18 @@ const penaltySchema = z.object({
 const penaltyAccrualSchema = z.object({
   loanId: z.string().uuid(),
   asOf: z.string().datetime().optional(),
+  reason: z.string().min(1).max(1000).optional(),
+});
+
+/**
+ * Declining-balance interest. A whole run of loans is priced at once, one charge per loan,
+ * and nothing is written when dryRun is set.
+ */
+const interestAccrualSchema = z.object({
+  asOf: z.string().datetime().optional(),
+  /** Empty means every ACTIVE loan on declining interest. */
+  loanIds: z.array(z.string().uuid()).min(1).max(500).optional(),
+  dryRun: z.boolean().optional(),
   reason: z.string().min(1).max(1000).optional(),
 });
 
@@ -151,6 +165,8 @@ interface CreateTxParams {
   referenceTransactionId?: string | null;
   sourceRequestId?: string | null;
   settlementAgreementId?: string | null;
+  /** Repayment period a charge belongs to — set for INTEREST_ACCRUAL, which makes it idempotent. */
+  periodIndex?: number | null;
   reason: string;
   user: AuthUser;
   ip?: string | null;
@@ -173,6 +189,7 @@ async function createPendingTransaction(em: EntityManager, params: CreateTxParam
     referenceTransactionId: params.referenceTransactionId ?? null,
     sourceRequestId: params.sourceRequestId ?? null,
     settlementAgreementId: params.settlementAgreementId ?? null,
+    periodIndex: params.periodIndex ?? null,
     reason: params.reason,
     createdBy: params.user.id,
   });
@@ -309,6 +326,16 @@ router.post(
   })
 );
 
+/**
+ * A penalty is a NEW charge, so only a live loan can take one: once a book is CLOSED or
+ * WRITTEN_OFF its outstanding is final. Same rule the interest accrual already applies.
+ */
+function assertLoanTakesPenalty(loan: Loan): void {
+  if (loan.status !== LoanStatus.ACTIVE) {
+    throw unprocessable(`Cannot add penalty to a ${loan.status} loan`);
+  }
+}
+
 router.post(
   '/penalties',
   requireRole(...OPERATOR_ROLES),
@@ -319,9 +346,7 @@ router.post(
     const result = await getDataSource().transaction(async (em) => {
       const loan = await em.findOne(Loan, { where: { id: loanId } });
       if (!loan) throw notFound('Loan');
-      if (loan.status === LoanStatus.CLOSED) {
-        throw unprocessable('Cannot add penalty to a CLOSED loan');
-      }
+      assertLoanTakesPenalty(loan);
       return createPendingTransaction(em, {
         loanId,
         transactionType: TransactionType.PENALTY,
@@ -353,9 +378,7 @@ router.post(
     const result = await getDataSource().transaction(async (em) => {
       const loan = await em.findOne(Loan, { where: { id: loanId } });
       if (!loan) throw notFound('Loan');
-      if (loan.status === LoanStatus.CLOSED) {
-        throw unprocessable('Cannot add penalty to a CLOSED loan');
-      }
+      assertLoanTakesPenalty(loan);
       const schedule = await getLoanSchedule(em, loanId, asOf);
       if (schedule.totals.penaltySuggested <= EPS) {
         throw unprocessable(
@@ -378,6 +401,122 @@ router.post(
     });
 
     res.status(201).json({ data: result });
+  })
+);
+
+/**
+ * Which declining-balance periods are waiting to be billed. Read-only, and the same pricing the
+ * accrual below applies, so the list an operator sees is the charge they are about to create.
+ * `loanIds` (comma separated) narrows the portfolio to the loans a screen is already looking at.
+ */
+router.get(
+  '/interest/due',
+  asyncHandler(async (req: Request, res: Response) => {
+    const asOf = typeof req.query.asOf === 'string' && req.query.asOf ? new Date(req.query.asOf) : new Date();
+    if (Number.isNaN(asOf.getTime())) throw badRequest('asOf must be a valid date');
+    const loanIds =
+      typeof req.query.loanIds === 'string' && req.query.loanIds
+        ? req.query.loanIds
+            .split(',')
+            .map((id) => id.trim())
+            // A malformed uuid would make MySQL reject the whole read, so the filter drops it.
+            .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+        : undefined;
+
+    const em = getDataSource().manager;
+    const due = await listDueInterest(em, asOf, loanIds);
+    const names = await em.find(Customer, { where: { id: In([...new Set(due.items.map((i) => i.customerId))]) } });
+    const nameById = new Map(names.map((c) => [c.id, c.fullName]));
+
+    const totalAmount = round2(due.items.reduce((acc, i) => acc + i.amount, 0));
+    res.json({
+      data: {
+        asOf,
+        totals: { loans: due.items.length, periods: due.items.length, amount: totalAmount },
+        items: due.items.map((item) => ({ ...item, customerName: nameById.get(item.customerId) ?? null })),
+        skipped: due.skipped,
+      },
+    });
+  })
+);
+
+/**
+ * INTEREST_ACCRUAL transactions for declining-balance loans, one per loan per run: the amount comes
+ * from the loan's own rate snapshot and the principal still owed, exactly like /penalties/accrue
+ * takes its amount from the penalty policy. Every charge still goes through maker-checker approval
+ * and the posting engine — the accrual itself never moves a balance.
+ *
+ * Idempotent per loan and period: a period already billed, or already sitting in the approval
+ * queue, is never billed twice, so a double click or a retried job is harmless.
+ */
+router.post(
+  '/interest/accrue',
+  requireRole(...OPERATOR_ROLES),
+  validateBody(interestAccrualSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user as AuthUser;
+    const body = req.body as z.infer<typeof interestAccrualSchema>;
+    const asOf = body.asOf ? new Date(body.asOf) : new Date();
+    if (Number.isNaN(asOf.getTime())) throw badRequest('asOf must be a valid date');
+
+    const result = await getDataSource().transaction(async (em) => {
+      const due = await listDueInterest(em, asOf, body.loanIds);
+      if (body.dryRun) return { ...due, created: [] as Array<{ transaction: FinancialTransaction; loan: Loan }> };
+
+      const created: Array<{ transaction: FinancialTransaction; loan: Loan }> = [];
+      for (const item of due.items) {
+        const loan = await em.findOne(Loan, { where: { id: item.loanId } });
+        if (!loan) throw notFound(`Loan ${item.loanId}`);
+        if (loan.status !== LoanStatus.ACTIVE) {
+          due.skipped.push({ loanId: loan.id, loanNumber: loan.loanNumber, reason: `Loan is ${loan.status}` });
+          continue;
+        }
+        const { transaction } = await createPendingTransaction(em, {
+          loanId: loan.id,
+          transactionType: TransactionType.INTEREST_ACCRUAL,
+          amount: item.amount,
+          componentAmounts: { PENALTY: 0, PAST_INTEREST: item.amount, PAST_PRINCIPAL: 0 },
+          periodIndex: item.periodIndex,
+          reason:
+            body.reason ??
+            `Interest ${item.periodIndex}/${loan.termMonths} on ` +
+            `${item.baseOutstandingPrincipal.toFixed(2)} LAK outstanding principal ` +
+            `(${loan.interestRate}%/${String(loan.interestRatePeriod).toLowerCase()}), ` +
+            `period from ${item.periodStart.toISOString().slice(0, 10)}`,
+          user,
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+        });
+        created.push({ transaction, loan });
+      }
+      return { ...due, created };
+    });
+
+    const charged = body.dryRun ? result.items.map((i) => i.amount) : result.created.map((c) => num(c.transaction.amount));
+    res.status(body.dryRun ? 200 : 201).json({
+      data: {
+        asOf: result.asOf,
+        dryRun: !!body.dryRun,
+        created: result.created.map((c) => ({
+          transactionId: c.transaction.id,
+          referenceNo: c.transaction.referenceNo,
+          loanId: c.loan.id,
+          loanNumber: c.loan.loanNumber,
+          periodIndex: c.transaction.periodIndex,
+          amount: num(c.transaction.amount),
+        })),
+        wouldCreate: result.items.map((i) => ({
+          loanId: i.loanId,
+          loanNumber: i.loanNumber,
+          periodIndex: i.periodIndex,
+          amount: i.amount,
+          baseOutstandingPrincipal: i.baseOutstandingPrincipal,
+          missingPeriods: i.missingPeriods,
+        })),
+        totals: { loans: charged.length, amount: round2(charged.reduce((acc, v) => acc + v, 0)) },
+        skipped: result.skipped,
+      },
+    });
   })
 );
 
@@ -570,13 +709,44 @@ export async function createWaiverFromSettlement(
   });
 }
 
+/**
+ * The price of settling early is a PENALTY charge attached to the agreement that priced it, so it goes
+ * through the same maker-checker approval and posting engine as every other penalty — a payoff can
+ * never bill the customer outside the ledger.
+ */
+export async function createEarlySettlementFeeCharge(
+  em: EntityManager,
+  params: {
+    loan: Loan;
+    settlementAgreementId: string;
+    agreementNo: string;
+    feePercent: number;
+    amount: number;
+    user: AuthUser;
+    ip?: string | null;
+    userAgent?: string | null;
+  },
+) {
+  return createPendingTransaction(em, {
+    loanId: params.loan.id,
+    transactionType: TransactionType.PENALTY,
+    amount: round2(params.amount),
+    settlementAgreementId: params.settlementAgreementId,
+    reason:
+      `Early-settlement fee ${num(params.feePercent)}% of the principal still owed ` +
+      `= ${round2(num(params.amount))} LAK (agreement ${params.agreementNo})`,
+    user: params.user,
+    ip: params.ip,
+    userAgent: params.userAgent,
+  });
+}
+
 router.get(
   '/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const em = getDataSource().manager;
     const tx = await em.findOne(FinancialTransaction, { where: { id: req.params.id } });
     if (!tx) throw notFound('Financial transaction');
-
     const [lines, workflow] = await Promise.all([
       em.find(FinancialTransactionLine, { where: { transactionId: tx.id } }),
       em.findOne(ApprovalWorkflow, {

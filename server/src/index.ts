@@ -8,6 +8,9 @@ import {
   startNotificationDispatcher,
   stopNotificationDispatcher,
 } from './services/notification-dispatcher.service';
+import { startAutoDebitJob, stopAutoDebitJob } from './services/auto-debit.service';
+import { startIdleLockJob, stopIdleLockJob } from './services/account-lock.service';
+import { startRateBucketPruneJob, stopRateBucketPruneJob } from './services/rate-limit.service';
 import { logger } from './utils/logger';
 
 async function main(): Promise<void> {
@@ -28,12 +31,19 @@ async function main(): Promise<void> {
   app.listen(env.port, () => {
     logger.info(`[server] listening on http://localhost:${env.port}`);
     startNotificationDispatcher();
+    startAutoDebitJob();
+    startIdleLockJob();
+    startRateBucketPruneJob();
   });
 }
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
-    void stopNotificationDispatcher().finally(() => process.exit(0));
+    void stopAutoDebitJob()
+      .then(() => stopIdleLockJob())
+      .then(() => stopRateBucketPruneJob())
+      .then(() => stopNotificationDispatcher())
+      .finally(() => process.exit(0));
   });
 }
 

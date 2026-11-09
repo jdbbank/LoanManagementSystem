@@ -5,7 +5,7 @@
 // `password_reset_tokens.createdAt` for its own fixture account only, so the 60s cooldown and
 // the 60s IP throttle cannot make a functional assertion ambiguous. Nothing else is written.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { PASSWORD, ROOT, api, check, errorMessage, isSealed, login, statusCheck, unseal } from '../lib/harness.mjs';
+import { PASSWORD, ROOT, api, check, errorMessage, isSealed, jwtClaims, login, rows, statusCheck, unseal, utcSql } from '../lib/harness.mjs';
 
 const CAT = 'forgot-password';
 const FIXTURE = { username: 'test_pwreset', email: 'test_pwreset@test.local', fullName: 'Test Reset Fixture', role: 'MAKER' };
@@ -57,7 +57,7 @@ const latestOtp = (conn, userId) => latestOutbox(conn, userId, 'PASSWORD_RESET_O
 
 /** Does any stored (sealed) column contain the secret in plain text? */
 const rawMentions = (row, secret) =>
-  !!row && ['bodyText', 'bodyHtml', 'payload'].some((f) => String(row[f] ?? '').includes(String(secret)));
+  !!row && ['subject', 'bodyText', 'bodyHtml', 'payload'].some((f) => String(row[f] ?? '').includes(String(secret)));
 
 const auditFor = async (conn, userId, action) =>
   conn
@@ -84,6 +84,14 @@ const userIdByEmail = async (conn, email) =>
     .query('SELECT id FROM users WHERE email=?', [email])
     .then(([r]) => r[0]?.id ?? null);
 
+/**
+ * The no-reuse rule reads `user_password_history`, and both places below that hand the fixture back
+ * its standard password are housekeeping rather than the rule under test — so the account's memory is
+ * cleared first, which is what a brand-new account looks like. Without it the second reset to the same
+ * shared password would be refused and the suite could not be re-run.
+ */
+const forgetPasswordHistory = (conn, userId) => conn.query('DELETE FROM user_password_history WHERE userId=?', [userId]);
+
 const logFiles = () => {
   const dirs = [`${ROOT}server/src/logs`, `${ROOT}server/dist/logs`].filter((d) => existsSync(d));
   return dirs.flatMap((d) => readdirSync(d).filter((f) => f.endsWith('.log')).map((f) => `${d}/${f}`));
@@ -109,10 +117,9 @@ export default async function suite(ctx) {
   let created = { json: { user: existing } };
   if (!existing) {
     created = await api('POST', '/api/users', { token: admin, body: { ...FIXTURE, password: OLD_PASSWORD } });
-  } else if (existing.deletedAt) {
-    await api('POST', `/api/users/${existing.id}/restore`, { token: admin });
-    await api('PATCH', `/api/users/${existing.id}`, { token: admin, body: { password: OLD_PASSWORD, isActive: true } });
   } else {
+    await forgetPasswordHistory(conn, existing.id);
+    if (existing.deletedAt) await api('POST', `/api/users/${existing.id}/restore`, { token: admin });
     await api('PATCH', `/api/users/${existing.id}`, { token: admin, body: { password: OLD_PASSWORD, isActive: true } });
   }
   const userId = created.json?.user?.id;
@@ -124,6 +131,10 @@ export default async function suite(ctx) {
   });
   if (!userId) return;
   await ageFixtureTokens(conn, userId);
+  // The IP throttle counts rows of EVERY account behind this client IP, so a re-run within 60s of a
+  // previous run would silently drop §1's issuance (202, no row) and every later OTP measurement with
+  // it. Opening a clean window here is what makes the suite re-runnable back to back.
+  await ageAllTokens(conn);
 
   // ---------------------------------------------------- 1. anti-enumeration
   const known = await api('POST', '/api/auth/forgot-password', { body: { email: FIXTURE.email } });
@@ -244,7 +255,12 @@ export default async function suite(ctx) {
     actual: JSON.stringify(wrongStatuses),
     pass: wrongStatuses.every((s) => s === 400),
   });
-  const burned = await token(conn, userId, 'OTP');
+  // Read the row this run actually issued (§4), not "the newest OTP": ageAllTokens above gives every
+  // historical row the same createdAt, so an ORDER BY createdAt DESC LIMIT 1 could report another run's
+  // row and turn a real burn into an unrelated attempts=0.
+  const burned = otpRow?.id
+    ? (await rows(conn, 'SELECT id, attempts, usedAt FROM password_reset_tokens WHERE id=?', [otpRow.id]))[0]
+    : await token(conn, userId, 'OTP');
   const auditBurn = await auditFor(conn, userId, 'USER_RESET_BURNED');
   check(CAT, 'ครบ 5 ครั้งที่ผิด: OTP ถูก burn (attempts=5, usedAt ตั้งแล้ว)', {
     input: 'password_reset_tokens after 5 wrong guesses',
@@ -372,6 +388,60 @@ export default async function suite(ctx) {
     note: 'JWT ไม่มีสถานะ (stateless) ถ้ายังตอบ 200 = token เดิมยังอยู่ได้จนหมดอายุ 12 ชม.',
   });
 
+  // ------------------------- 7b. the revocation boundary is exact to the millisecond (F-SES-1)
+  // A sign-in and a password change can land in the same wall-clock second, and `iat` only names that
+  // second, so "minted before the change" and "minted after it" were indistinguishable there. The
+  // boundary is pinned deterministically: passwordChangedAt is written one millisecond either side of
+  // THIS token's recorded mint instant, then restored from its own DATE_FORMAT read-back.
+  const freshSession = (await login(FIXTURE.username, NEW_PASSWORD)).json?.token;
+  const freshClaims = jwtClaims(freshSession);
+  const mintedAtMs = Number(freshClaims.mintedAtMs);
+  check(CAT, 'login บันทึกเวลาออก token แบบ millisecond (mintedAtMs) ไว้ข้าง ๆ iat', {
+    input: 'base64url-decode payload ของ JWT ที่ /api/auth/login คืน',
+    expected: 'mintedAtMs เป็น epoch ms and iat = floor(mintedAtMs / 1000)',
+    actual: `iat=${freshClaims.iat} mintedAtMs=${Number.isInteger(mintedAtMs) ? mintedAtMs : 'missing'} offset=${
+      Number.isInteger(mintedAtMs) ? mintedAtMs - (freshClaims.iat ?? 0) * 1000 : 'n/a'
+    } ms`,
+    pass: Number.isInteger(mintedAtMs) && mintedAtMs > 0 && freshClaims.iat === Math.floor(mintedAtMs / 1000),
+    note: 'F-SES-1: ระบบต้องรู้ว่า session เกิดขึ้นเมื่อใดจริงในระดับที่เทียบกับ passwordChangedAt ได้ ไม่ใช่ปัดเป็นวินาที',
+  });
+
+  const changedAtBefore = (await rows(conn, "SELECT DATE_FORMAT(passwordChangedAt, '%Y-%m-%d %H:%i:%s.%f') s FROM users WHERE id=?", [userId]))[0]?.s;
+  await conn.execute('UPDATE users SET passwordChangedAt = ? WHERE id=?', [utcSql(mintedAtMs + 1), userId]);
+  const oneMsAfter = await api('GET', '/api/auth/me', { token: freshSession });
+  check(CAT, 'password change ที่ mintedAtMs+1ms: token ที่ออกก่อนถูกเพิกถอนทันที (401)', {
+    input: `mintedAtMs=${mintedAtMs} -> เขียน passwordChangedAt='${utcSql(mintedAtMs + 1)}' (หลัง token 1 ms)`,
+    expected: '401 "Session is no longer valid"',
+    actual: `HTTP ${oneMsAfter.status} ${errorMessage(oneMsAfter).slice(0, 60)}`,
+    pass: oneMsAfter.status === 401 && errorMessage(oneMsAfter).includes('Session is no longer valid'),
+  });
+
+  await conn.execute('UPDATE users SET passwordChangedAt = ? WHERE id=?', [utcSql(mintedAtMs), userId]);
+  const exactInstant = await api('GET', '/api/auth/me', { token: freshSession });
+  check(CAT, 'ขอบเขตพอดี instant (passwordChangedAt == mintedAtMs): session ที่ออกพร้อมกันยังใช้ได้ (200)', {
+    input: `passwordChangedAt='${utcSql(mintedAtMs)}' ด้วย token เดิม`,
+    expected: '200 — ห้ามเพิกถอน session ที่เกิดหลังการเปลี่ยนรหัส (กรณี flaky เดิมของ F-SES-1)',
+    actual: `HTTP ${exactInstant.status} ${errorMessage(exactInstant).slice(0, 60)}`,
+    pass: exactInstant.status === 200,
+  });
+  const storedFraction = (await rows(conn, "SELECT DATE_FORMAT(passwordChangedAt, '%f') f FROM users WHERE id=?", [userId]))[0]?.f;
+  check(CAT, 'users.passwordChangedAt เก็บ millisecond ได้จริง (datetime(3) ไม่ใช่ datetime ที่ปัด)', {
+    input: `เขียน '${utcSql(mintedAtMs)}' แล้วอ่านกลับด้วย DATE_FORMAT('%f')`,
+    expected: `${String(mintedAtMs % 1000).padStart(3, '0')} (สามหลักของ ms ที่เขียน)`,
+    actual: `อ่านได้ ${storedFraction}`,
+    pass: String(storedFraction ?? '').slice(0, 3) === String(mintedAtMs % 1000).padStart(3, '0'),
+    note: 'ก่อนแก้ คอลัมน์ datetime ทำให้ MySQL ปัด .747 ขึ้นเป็นวินาทีถัดไป login ที่เกิดตามหลังในวินาทีเดียวกันจึงถูกเพิกถอนทั้งที่ควรใช้ได้ (และ .345 ลงเป็นวินาทีก่อนหน้า ทำให้ session เก่ารอด)',
+  });
+
+  await conn.execute('UPDATE users SET passwordChangedAt = ? WHERE id=?', [changedAtBefore, userId]);
+  const changedAtRestored = (await rows(conn, "SELECT DATE_FORMAT(passwordChangedAt, '%Y-%m-%d %H:%i:%s.%f') s FROM users WHERE id=?", [userId]))[0]?.s;
+  check(CAT, 'คืน passwordChangedAt ของบัญชี fixture ตรงถึง microsecond ที่อ่านมา (suites ถัดไปเห็นค่าเดิม)', {
+    input: 'restore จาก DATE_FORMAT ที่อ่านก่อนแตะแถว',
+    expected: changedAtBefore,
+    actual: changedAtRestored,
+    pass: changedAtRestored === changedAtBefore,
+  });
+
   // ---------------------------------------------------- 8. other secrets of the account are retired
   const leftovers = await conn
     .query('SELECT COUNT(*) n FROM password_reset_tokens WHERE userId=? AND usedAt IS NULL AND expiresAt > NOW()', [userId])
@@ -435,6 +505,7 @@ export default async function suite(ctx) {
   statusCheck(CAT, 'forgot-password โดยไม่มี email: 400', noBody, 400, { input: '{}' });
 
   // restore the shared password so later suites can log in with the standard fixture password
+  await forgetPasswordHistory(conn, userId);
   await api('PATCH', `/api/users/${userId}`, { token: admin, body: { password: PASSWORD } });
   await ageFixtureTokens(conn, userId);
   check(CAT, 'ล้างบัญชี fixture กลับรหัสผ่านมาตรฐานแล้ว', {

@@ -144,6 +144,135 @@ export default async function suite(ctx) {
         (byCustomer.json.data ?? []).every((r) => r.customerId === oneCustomer),
     });
 
+    // ------------------------- สรุปผลิตภัณฑ์ที่ลูกค้ากู้ (คอลัมน์ใหม่ในหน้า Customers)
+    // จุดนี้ต้องรันก่อนที่ suite จะสร้าง loan ใหม่ ตัวเลขถึงจะเทียบกับข้อมูล seed ล้วน ๆ
+    const customersRes = await api('GET', '/api/customers');
+    const customerRows = customersRes.json.customers ?? [];
+    statusCheck(CAT, 'GET /api/customers: ตอบ 200 (ไม่มี parameter = คืนทุกแถว)', customersRes, 200, { input: 'no query' });
+    const badBorrowingShape = customerRows.filter(
+      (c) =>
+        typeof c.activeLoanCount !== 'number' ||
+        !Array.isArray(c.borrowings) ||
+        c.borrowings.some(
+          (b) =>
+            typeof b.productId !== 'string' ||
+            typeof b.productName !== 'string' ||
+            typeof b.loanCount !== 'number' ||
+            typeof b.activeCount !== 'number' ||
+            typeof b.outstanding !== 'number',
+        ),
+    );
+    check(CAT, 'ทุกรายการมี activeLoanCount + borrowings[{productId,productName,loanCount,activeCount,outstanding}]', {
+      input: `${customerRows.length} rows`,
+      expected: '0 แถวที่ขาด field ใหม่',
+      actual: `${badBorrowingShape.length} แถวที่ไม่ครบ${badBorrowingShape.length ? ': ' + badBorrowingShape.map((c) => c.customerNumber).join(',') : ''}`,
+      pass: customerRows.length > 0 && badBorrowingShape.length === 0,
+    });
+
+    const productCodeById = new Map(products.map((p) => [p.id, p.code]));
+    const productCodeId = (code) => products.find((p) => p.code === code)?.id ?? code;
+    /** สร้างสรุปผลิตภัณฑ์ต่อลูกค้าจาก expected.json (แหล่งข้อมูลอิสระจาก API) */
+    const wantBorrowings = (customerId) => {
+      const rows = new Map();
+      for (const l of expAll.filter((x) => x.customerId === customerId)) {
+        const row = rows.get(l.product) ?? {
+          productCode: l.product,
+          productId: productCodeId(l.product),
+          loanCount: 0,
+          activeCount: 0,
+          outstanding: 0,
+        };
+        row.loanCount += 1;
+        if (l.status === 'ACTIVE') {
+          row.activeCount += 1;
+          row.outstanding += Number(l.outstanding.total);
+        }
+        rows.set(l.product, row);
+      }
+      return [...rows.values()];
+    };
+    const borrowingDiffs = (customerId) => {
+      const got = (customerRows.find((c) => c.id === customerId)?.borrowings ?? []).slice();
+      const want = wantBorrowings(customerId);
+      const diffs = [];
+      for (const w of want) {
+        const g = got.find((x) => productCodeById.get(x.productId) === w.productCode);
+        if (!g) {
+          diffs.push(`${w.productCode}: ไม่มีใน response`);
+          continue;
+        }
+        if (g.loanCount !== w.loanCount || g.activeCount !== w.activeCount || !sameMoney(g.outstanding, w.outstanding)) {
+          diffs.push(`${w.productCode}: ได้ ${g.loanCount}/${g.activeCount}/${g.outstanding} ต้องการ ${w.loanCount}/${w.activeCount}/${w.outstanding}`);
+        }
+      }
+      if (got.length !== want.length) diffs.push(`จำนวนผลิตภัณฑ์: ได้ ${got.length} ต้องการ ${want.length}`);
+      return diffs;
+    };
+
+    const multiCustomerRow = customerRows.find((c) => c.id === oneCustomer);
+    check(CAT, 'ลูกค้าที่มีหลายสัญญา: borrowings รวมตามผลิตภัณฑ์ + loanCount = ผลบวกทุกผลิตภัณฑ์', {
+      input: `customerId=${oneCustomer} (${custLoans[0].customerNumber}, ${custLoans.length} loans)`,
+      expected: `0 ส่วนต่าง, loanCount ${custLoans.length}`,
+      actual: `${borrowingDiffs(oneCustomer).join(' | ') || 'ตรงทุกฟิลด์'}, loanCount=${multiCustomerRow?.loanCount}, ผลบวกผลิตภัณฑ์=${(multiCustomerRow?.borrowings ?? []).reduce((a, b) => a + b.loanCount, 0)}`,
+      pass:
+        borrowingDiffs(oneCustomer).length === 0 &&
+        multiCustomerRow?.loanCount === custLoans.length &&
+        (multiCustomerRow?.borrowings ?? []).reduce((a, b) => a + b.loanCount, 0) === custLoans.length,
+    });
+
+    const activeCountBad = customerRows.filter((c) => {
+      const fromBorrowings = (c.borrowings ?? []).reduce((a, b) => a + b.activeCount, 0);
+      return fromBorrowings !== c.activeLoanCount;
+    });
+    check(CAT, 'activeLoanCount = ผลรวม activeCount ของทุกผลิตภัณฑ์ (ทุกแถว)', {
+      input: `${customerRows.length} rows`,
+      expected: '0 แถวที่ไม่ตรง',
+      actual: `${activeCountBad.length} แถวที่ไม่ตรง${activeCountBad.length ? ': ' + activeCountBad.map((c) => c.customerNumber).join(',') : ''}`,
+      pass: activeCountBad.length === 0,
+    });
+
+    const activeFirstBad = customerRows.filter((c) => {
+      const list = c.borrowings ?? [];
+      return list.some((b, i) => b.activeCount === 0 && list.slice(i + 1).some((n) => n.activeCount > 0));
+    });
+    check(CAT, 'เรียงผลิตภัณฑ์: ที่มีหนี้ค้างอยู่ต้องขึ้นก่อนที่เคยกู้เสร็จไปแล้ว', {
+      input: `${customerRows.length} rows`,
+      expected: '0 แถวที่เรียงผิด',
+      actual: `${activeFirstBad.length} แถว${activeFirstBad.length ? ': ' + activeFirstBad.map((c) => c.customerNumber).join(',') : ''}`,
+      pass: activeFirstBad.length === 0,
+    });
+
+    const closedCustomers = expAll.filter((l) => l.status !== 'ACTIVE');
+    const closedOnly = [];
+    for (const l of closedCustomers) {
+      if (!expAll.some((x) => x.customerId === l.customerId && x.status === 'ACTIVE')) closedOnly.push(l);
+    }
+    const historyOnlyBad = closedOnly
+      .map((l) => {
+        const row = customerRows.find((c) => c.id === l.customerId);
+        const b = (row?.borrowings ?? []).find((x) => productCodeById.get(x.productId) === l.product);
+        return b && (b.activeCount !== 0 || b.outstanding !== 0) ? `${l.customerNumber}:${l.product}` : null;
+      })
+      .filter(Boolean);
+    check(CAT, 'ประวัติเคยกู้ (loan ปิด/ตัดจำหน่ายแล้ว): activeCount=0 และ outstanding=0 แต่ยังแสดงชื่อผลิตภัณฑ์', {
+      input: `${closedOnly.length} สัญญาที่ลูกค้าไม่มีหนี้ ACTIVE`,
+      expected: '0 รายการที่ตัวเลขผิด',
+      actual: `${historyOnlyBad.length} ผิด${historyOnlyBad.length ? ': ' + historyOnlyBad.join(',') : ''}`,
+      pass: closedOnly.length > 0 && historyOnlyBad.length === 0,
+    });
+
+    const borrowOutstandingSum = customerRows.reduce(
+      (acc, c) => acc + (c.borrowings ?? []).reduce((a, b) => a + Number(b.outstanding), 0),
+      0,
+    );
+    const liveOutstandingSum = sum(all, (l) => l.currentOutstanding);
+    check(CAT, 'ผลรวม outstanding ใน borrowings ของลูกค้าทุกคน = ยอดคงค้าง ACTIVE รวมจากหน้า loans', {
+      input: `GET /api/customers เทียบ GET /api/loans?limit=100 (${all.length} แถว)`,
+      expected: fmt(toCents(liveOutstandingSum)),
+      actual: fmt(toCents(borrowOutstandingSum)),
+      pass: sameMoney(borrowOutstandingSum, liveOutstandingSum),
+    });
+
     const qNumber = await api('GET', '/api/loans?q=LN-TST-000003');
     check(CAT, 'ค้นหาด้วยเลข loan (q) เจอ 1 รายการ', {
       input: 'q=LN-TST-000003',
@@ -320,7 +449,7 @@ export default async function suite(ctx) {
       pass: paymentRows.length > 0 && creditMismatch.length === 0,
     });
     const negativeCash = lineSums.filter((r) => Number(r.cashAmount) < 0);
-    check(CAT, 'ไม่มี payment request nào มียอดเงินสดติดลบ (ข้อมูลทดสอบต้องสมเหตุสมผลก่อนใช้ตรวจยอดคงค้าง)', {
+    check(CAT, 'ไม่มี payment request ทิ่มียอดเงินสดติดลบ (ข้อมูลทดสอบต้องสมเหตุสมผลก่อนใช้ตรวจยอดคงค้าง)', {
       input: 'payment_requests.cashAmount of posted payments',
       expected: 'all >= 0',
       actual: negativeCash.length ? negativeCash.map((r) => `${r.referenceNo}=${r.cashAmount}`).join(',') : 'all >= 0',

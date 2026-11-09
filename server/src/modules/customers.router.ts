@@ -5,17 +5,62 @@ import { getDataSource } from '../datasource';
 import { Customer } from '../entities/customer.entity';
 import { CustomerCredit } from '../entities/customer-credit.entity';
 import { Loan } from '../entities/loan.entity';
+import { LoanProduct } from '../entities/loan-product.entity';
 import { KycDocument } from '../entities/kyc-document.entity';
-import { UserRole } from '../entities/types';
+import { LoanStatus, UserRole } from '../entities/types';
 import { writeAudit } from '../services/audit.service';
+import { notifyCustomerRegistered } from '../services/notification-events.service';
 import { authMiddleware, requireAuth, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/error';
 import { asyncHandler } from '../utils/async-handler';
 import { notFound } from '../utils/errors';
+import { num, round2 } from '../utils/money';
 import { pad } from '../utils/pad';
 
 const router = Router();
 router.use(authMiddleware);
+
+/** One row per product this customer has borrowed under: what is open now and what the history shows. */
+interface BorrowingRow {
+  productId: string;
+  productCode: string;
+  productName: string;
+  loanCount: number;
+  activeCount: number;
+  outstanding: number;
+  lastDisbursedAt: Date | null;
+}
+
+/** Products sort first while the customer still owes on them, then by the most recent disbursement. */
+function collectBorrowings(loans: Loan[], productById: Map<string, LoanProduct>): BorrowingRow[] {
+  const byProduct = new Map<string, BorrowingRow>();
+  for (const loan of loans) {
+    const existing = byProduct.get(loan.productId);
+    const row: BorrowingRow = existing ?? {
+      productId: loan.productId,
+      productCode: productById.get(loan.productId)?.code ?? '',
+      productName: productById.get(loan.productId)?.name ?? '',
+      loanCount: 0,
+      activeCount: 0,
+      outstanding: 0,
+      lastDisbursedAt: null,
+    };
+    row.loanCount += 1;
+    if (loan.status === LoanStatus.ACTIVE) {
+      row.activeCount += 1;
+      row.outstanding = round2(row.outstanding + num(loan.currentOutstanding));
+    }
+    const disbursed = loan.disbursedAt ?? loan.createdAt;
+    if (!row.lastDisbursedAt || disbursed > row.lastDisbursedAt) row.lastDisbursedAt = disbursed;
+    byProduct.set(loan.productId, row);
+  }
+  return [...byProduct.values()].sort(
+    (a, b) =>
+      Number(b.activeCount > 0) - Number(a.activeCount > 0) ||
+      (b.lastDisbursedAt?.getTime() ?? 0) - (a.lastDisbursedAt?.getTime() ?? 0) ||
+      a.productName.localeCompare(b.productName),
+  );
+}
 
 router.get(
   '/',
@@ -47,20 +92,36 @@ router.get(
             .getRawMany<{ customerId: string; documentCount: string }>(),
         ])
       : [[], [], []];
-    const loansByCustomer = new Map<string, number>();
+    const productIds = [...new Set(loans.map((loan) => loan.productId))];
+    const products = productIds.length
+      ? await getDataSource().getRepository(LoanProduct).find({ where: { id: In(productIds) } })
+      : [];
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const loansByCustomer = new Map<string, Loan[]>();
+    const activeLoansByCustomer = new Map<string, number>();
     for (const loan of loans) {
-      loansByCustomer.set(loan.customerId, (loansByCustomer.get(loan.customerId) ?? 0) + 1);
+      const bucket = loansByCustomer.get(loan.customerId) ?? [];
+      bucket.push(loan);
+      loansByCustomer.set(loan.customerId, bucket);
+      if (loan.status === LoanStatus.ACTIVE) {
+        activeLoansByCustomer.set(loan.customerId, (activeLoansByCustomer.get(loan.customerId) ?? 0) + 1);
+      }
     }
     const creditByCustomer = new Map(credits.map((c) => [c.customerId, c]));
     const kycByCustomer = new Map(kycRows.map((r) => [r.customerId, Number(r.documentCount)]));
 
     res.json({
-      customers: customers.map((c) => ({
-        ...c,
-        loanCount: loansByCustomer.get(c.id) ?? 0,
-        creditBalance: creditByCustomer.get(c.id)?.balance ?? 0,
-        kycDocumentCount: kycByCustomer.get(c.id) ?? 0,
-      })),
+      customers: customers.map((c) => {
+        const customerLoans = loansByCustomer.get(c.id) ?? [];
+        return {
+          ...c,
+          loanCount: customerLoans.length,
+          activeLoanCount: activeLoansByCustomer.get(c.id) ?? 0,
+          borrowings: collectBorrowings(customerLoans, productById),
+          creditBalance: creditByCustomer.get(c.id)?.balance ?? 0,
+          kycDocumentCount: kycByCustomer.get(c.id) ?? 0,
+        };
+      }),
       ...(paginated ? { pagination: { page, limit, total } } : {}),
     });
   }),
@@ -98,6 +159,11 @@ router.post(
       reason: customer.fullName,
       newStatus: customer.customerNumber,
       ip: req.ip ?? null,
+    });
+    await notifyCustomerRegistered(ds.manager, {
+      customerId: customer.id,
+      createdByName: req.user!.fullName,
+      actorUserId: req.user!.id,
     });
     res.status(201).json({ customer });
   }),

@@ -1,10 +1,11 @@
+import EmptyState from '../components/EmptyState';
+import TableSkeleton from '../components/TableSkeleton';
 import AddIcon from '@mui/icons-material/Add';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -232,7 +233,7 @@ export default function TransactionsPage() {
             </TextField>
           </Stack>
           {transactionsQuery.isLoading ? (
-            <Stack sx={{ alignItems: 'center', py: 4 }}><CircularProgress /></Stack>
+            <TableSkeleton columns={7} label={t('common.loading')} />
           ) : (
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small">
@@ -285,7 +286,7 @@ export default function TransactionsPage() {
                     </TableRow>
                   ))}
                   {transactionsQuery.data?.data.length === 0 && (
-                    <TableRow><TableCell colSpan={7} align="center">{t('transactions.noTransactions')}</TableCell></TableRow>
+                    <EmptyState colSpan={7} message={t('transactions.noTransactions')} />
                   )}
                 </TableBody>
               </Table>

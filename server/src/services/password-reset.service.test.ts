@@ -1,13 +1,15 @@
-import { createHash } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { describe, expect, it } from 'vitest';
 import { env } from '../config/env';
 import { PasswordResetToken } from '../entities/password-reset-token.entity';
 import { ResetTokenKind } from '../entities/types';
 import { newLinkSecret, newOtp, verifySecret } from './password-reset.service';
 
-/** Only the hash matters to verifySecret, so a partial row is enough. */
+/** Only the stored digest matters to verifySecret, so a partial row is enough. */
 const storedRow = (raw: string): PasswordResetToken =>
-  ({ tokenHash: createHash('sha256').update(raw).digest('hex') }) as PasswordResetToken;
+  ({
+    tokenHash: createHmac('sha256', env.security.tokenPepper).update(raw).digest('hex'),
+  }) as PasswordResetToken;
 
 describe('password reset secrets', () => {
   it('draws a fixed-width numeric code', () => {
@@ -30,6 +32,21 @@ describe('password reset secrets', () => {
     const wrong = secret === '000000' ? '111111' : '000000';
     expect(verifySecret(storedRow(secret), secret)).toBe(true);
     expect(verifySecret(storedRow(secret), wrong)).toBe(false);
+  });
+
+  it('refuses the bare hash a leaked table used to hold', () => {
+    // Six digits is a million values, so an unkeyed digest of one can be found by hashing them all.
+    // The keyed digest is a different string, and a row written under the old scheme stops matching.
+    const secret = newOtp();
+    const legacyRow = {
+      tokenHash: createHash('sha256').update(secret).digest('hex'),
+    } as PasswordResetToken;
+    expect(legacyRow.tokenHash).not.toBe(storedRow(secret).tokenHash);
+    expect(verifySecret(legacyRow, secret)).toBe(false);
+  });
+
+  it('refuses a stored digest of another length rather than throwing on the comparison', () => {
+    expect(verifySecret({ tokenHash: 'too-short' } as PasswordResetToken, newOtp())).toBe(false);
   });
 
   it('keeps the code window shorter than the link window', () => {

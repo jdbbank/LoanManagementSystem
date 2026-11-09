@@ -1,9 +1,9 @@
 import { Kafka, logLevel, Producer } from 'kafkajs';
 import { env } from '../config/env';
 import { getDataSource } from '../datasource';
-import { NotificationEvent, NotificationEventType } from '../entities/types';
+import { NotificationEvent } from '../entities/types';
 import { logger } from '../utils/logger';
-import { claimableRows, markFailed, markSent, toNotificationEvent } from './notification.service';
+import { claimableRows, markFailed, markSent, SECRET_EVENT_TYPES, toNotificationEvent } from './notification.service';
 
 /**
  * Drains the notification outbox. The backend never sends SMTP itself: it hands the
@@ -53,17 +53,9 @@ async function sendViaHttp(event: NotificationEvent): Promise<void> {
   }
 }
 
-/**
- * These templates put the live secret in the subject (the OTP is the subject of the code
- * email), so the dev transport must never echo their content into the log file.
- */
-const SECRET_EVENT_TYPES: ReadonlySet<NotificationEventType> = new Set([
-  NotificationEventType.PASSWORD_RESET_OTP,
-  NotificationEventType.PASSWORD_RESET_LINK,
-]);
-
 /** Dev transport: the pipeline runs end to end but nothing leaves the machine. */
 async function sendViaLog(event: NotificationEvent): Promise<void> {
+  // SECRET_EVENT_TYPES put the live secret in the subject, so the log only records its size.
   const content = SECRET_EVENT_TYPES.has(event.type)
     ? `<redacted ${event.subject.length} + ${event.text.length} chars>`
     : `${event.subject} | ${event.text.length} chars`;

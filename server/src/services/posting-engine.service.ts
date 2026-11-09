@@ -1,4 +1,4 @@
-import { EntityManager } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 import { getDataSource } from '../datasource';
 import { ApprovalWorkflow } from '../entities/approval-workflow.entity';
 import { ApprovalStep } from '../entities/approval-step.entity';
@@ -7,8 +7,10 @@ import { CustomerCredit } from '../entities/customer-credit.entity';
 import { FinancialTransaction } from '../entities/financial-transaction.entity';
 import { FinancialTransactionLine } from '../entities/financial-transaction-line.entity';
 import { Loan } from '../entities/loan.entity';
+import { LoanProduct } from '../entities/loan-product.entity';
 import { PaymentAllocation } from '../entities/payment-allocation.entity';
 import { PaymentRequest } from '../entities/payment-request.entity';
+import { SettlementAgreement } from '../entities/settlement-agreement.entity';
 import {
   ApprovalLevel,
   ApprovalSubjectType,
@@ -16,6 +18,7 @@ import {
   ComponentType,
   CreditLedgerType,
   LoanStatus,
+  PaymentRequestPurpose,
   PaymentRequestStatus,
   StepStatus,
   TransactionStatus,
@@ -23,7 +26,17 @@ import {
 } from '../entities/types';
 import { allocateReversalSequentially, allocateSequentially, validateAllocationOverride, zeroComponents } from './allocation.service';
 import { applyDeltas, balanceSnapshot, computeLoanStatusAfterPosting, getBalances } from './loan-balance.service';
-import { notifyPaymentPosted } from './notification-events.service';
+import { resolvePenaltyPolicy } from './loan-schedule.service';
+import { penaltyCeilingOf } from './penalty-policy.service';
+import { assertEarlySettlementFeePosted, settlementTotalDue } from './settlement.service';
+import {
+  notifyAutoDebitPosted,
+  notifyCreditDeposited,
+  notifyPaymentPosted,
+  notifyPenaltyPosted,
+  notifyWaiverPosted,
+  notifyWriteOffPosted,
+} from './notification-events.service';
 import { writeAudit } from './audit.service';
 import { notFound, unprocessable } from '../utils/errors';
 import { EPS, num, round2, sumAmounts } from '../utils/money';
@@ -117,6 +130,33 @@ async function approvalUserIds(em: EntityManager, tx: FinancialTransaction): Pro
   };
 }
 
+/**
+ * The customer's credit row, write-locked for the rest of this transaction. Two payments on
+ * different loans of the same customer otherwise read the same balance and spend it twice,
+ * leaving `credit_ledger` unable to close against `customer_credits.balance` (F-CONC-1).
+ * A customer with no row yet gets one inserted, so concurrent first-time accruals lock a real
+ * row instead of both trying to create it.
+ */
+async function lockCredit(em: EntityManager, customerId: string, currency: string): Promise<CustomerCredit> {
+  const locked = await em.findOne(CustomerCredit, {
+    where: { customerId, currency },
+    lock: { mode: 'pessimistic_write' },
+  });
+  if (locked) return locked;
+
+  try {
+    await em.insert(CustomerCredit, { customerId, currency, balance: 0 });
+  } catch {
+    // A concurrent transaction created it first; the locked read below waits for it and finds it.
+  }
+  const created = await em.findOne(CustomerCredit, {
+    where: { customerId, currency },
+    lock: { mode: 'pessimistic_write' },
+  });
+  if (!created) throw notFound('Customer credit row could not be locked');
+  return created;
+}
+
 async function adjustCredit(
   em: EntityManager,
   customerId: string,
@@ -127,14 +167,9 @@ async function adjustCredit(
   ctx: PostContext,
   loanId: string,
 ): Promise<number> {
-  let credit = await em.findOne(CustomerCredit, { where: { customerId, currency } });
-  const balanceBefore = credit ? num(credit.balance) : 0;
-  const balanceAfter = round2(balanceBefore + delta);
-  if (!credit) {
-    credit = em.create(CustomerCredit, { customerId, currency, balance: balanceAfter });
-  } else {
-    credit.balance = balanceAfter;
-  }
+  const credit = await lockCredit(em, customerId, currency);
+  const balanceAfter = round2(num(credit.balance) + delta);
+  credit.balance = balanceAfter;
   await em.save(CustomerCredit, credit);
   await em.insert(CreditLedger, {
     customerId,
@@ -161,6 +196,103 @@ interface PaymentPosting {
   excess: number;
 }
 
+/**
+ * A settlement agreement is paid once (F-CONC-5). Several approved drafts of the same agreement can
+ * exist because the create-time check only compares one payment against the agreed amount, so the
+ * ceiling is measured again here against what has actually been posted. The ceiling covers the early
+ * settlement fee too, and that fee has to be posted first — otherwise the payment allocates against a
+ * book that does not carry it yet.
+ */
+async function assertWithinSettlementCeiling(
+  em: EntityManager,
+  tx: FinancialTransaction,
+  paymentTotal: number,
+): Promise<void> {
+  const agreement = await em.findOne(SettlementAgreement, {
+    where: { id: String(tx.settlementAgreementId) },
+    lock: { mode: 'pessimistic_write' },
+  });
+  if (!agreement) throw notFound('Settlement agreement not found');
+
+  const posted = await em.find(FinancialTransaction, {
+    where: {
+      settlementAgreementId: agreement.id,
+      transactionType: TransactionType.SETTLEMENT_PAYMENT,
+      status: TransactionStatus.POSTED,
+    },
+  });
+  const postedIds = posted.map((row) => row.id);
+  const reversals = postedIds.length
+    ? await em.find(FinancialTransaction, {
+        where: {
+          referenceTransactionId: In(postedIds),
+          transactionType: TransactionType.PAYMENT_REVERSAL,
+          status: TransactionStatus.POSTED,
+        },
+      })
+    : [];
+
+  const billedFee = await em.find(FinancialTransaction, {
+    where: {
+      settlementAgreementId: agreement.id,
+      transactionType: TransactionType.PENALTY,
+      status: TransactionStatus.POSTED,
+    },
+  });
+  assertEarlySettlementFeePosted(
+    agreement,
+    round2(billedFee.reduce((total, row) => total + num(row.amount), 0)),
+  );
+
+  const alreadyPaid = round2(
+    posted.reduce((total, row) => total + num(row.amount), 0) -
+      reversals.reduce((total, row) => total + num(row.amount), 0),
+  );
+  const totalDue = settlementTotalDue(agreement);
+  if (alreadyPaid + paymentTotal - totalDue > EPS) {
+    throw unprocessable(
+      `Settlement agreement ${agreement.agreementNo} is already paid for ${alreadyPaid} of ${totalDue} ` +
+        `(${num(agreement.agreedAmount)} agreed plus ${num(agreement.earlySettlementFee)} early-settlement fee)`,
+    );
+  }
+}
+
+/**
+ * The product ceiling is `maxPercentOfPrincipal` percent of this loan's own principal — the same
+ * figure `capAccruedPenalties` trims a system-calculated accrual with. That route can therefore
+ * never breach it, so this guard exists for the manual charge route, where an operator types the
+ * amount and nothing bounded it. A waiver does not buy headroom back: the ceiling is on what has
+ * been billed, not on what is still owed, so charging to the cap, waiving it and charging again
+ * stays refused. Only a PAYMENT can be reversed, so posted penalties are cumulative.
+ * The loan row is already write-locked by the caller, so two penalties cannot post at once.
+ */
+async function assertWithinPenaltyCeiling(
+  em: EntityManager,
+  tx: FinancialTransaction,
+  loan: Loan,
+): Promise<void> {
+  const product = await em.findOne(LoanProduct, { where: { id: loan.productId } });
+  const policy = resolvePenaltyPolicy(loan, product);
+  const cap = penaltyCeilingOf(policy, num(loan.principalAmount));
+  if (cap <= 0) return;
+
+  const posted = await em.find(FinancialTransaction, {
+    where: {
+      loanId: loan.id,
+      transactionType: TransactionType.PENALTY,
+      status: TransactionStatus.POSTED,
+    },
+  });
+  const alreadyBilled = round2(posted.reduce((total, row) => total + num(row.amount), 0));
+  const total = round2(alreadyBilled + num(tx.amount));
+  if (total - cap > EPS) {
+    throw unprocessable(
+      `Penalty would exceed the product ceiling: ${total} billed of a ${cap} maximum ` +
+        `(${num(policy.maxPercentOfPrincipal)}% of principal ${num(loan.principalAmount)})`,
+    );
+  }
+}
+
 async function postPayment(
   em: EntityManager,
   tx: FinancialTransaction,
@@ -179,9 +311,15 @@ async function postPayment(
   const paymentTotal = round2(num(tx.amount));
   const outstanding = getBalances(loan);
 
+  if (tx.settlementAgreementId) await assertWithinSettlementCeiling(em, tx, paymentTotal);
+
   const allocations = await em.find(PaymentAllocation, { where: { paymentRequestId: request.id } });
   let allocation: ComponentAmounts;
-  if (allocations.some((row) => row.overridden)) {
+  if (request.purpose === PaymentRequestPurpose.DEPOSIT_TO_CREDIT) {
+    // A deposit is cash taken against no debt, so nothing is allocated and the whole amount
+    // falls through to the customer's credit below.
+    allocation = zeroComponents();
+  } else if (allocations.some((row) => row.overridden)) {
     // Staff override — HARD validation again at posting time (LOCKED section 7).
     allocation = zeroComponents();
     for (const row of allocations) allocation[row.component] = round2(num(row.finalAmount));
@@ -196,8 +334,7 @@ async function postPayment(
   const excess = round2(paymentTotal - allocatedTotal);
 
   if (num(request.creditApplied) > EPS) {
-    const credit = await em.findOne(CustomerCredit, { where: { customerId: tx.customerId, currency: tx.currency } });
-    const available = credit ? num(credit.balance) : 0;
+    const available = num((await lockCredit(em, tx.customerId, tx.currency)).balance);
     if (available + EPS < num(request.creditApplied)) {
       throw unprocessable(
         `Insufficient customer credit: available ${available}, required ${num(request.creditApplied)}`,
@@ -358,8 +495,28 @@ export async function postTransaction(txId: string, ctx: PostContext): Promise<P
       }
       case TransactionType.PENALTY: {
         if (num(tx.amount) <= EPS) throw unprocessable('Penalty amount must be positive');
+        // The charge may have been drafted while the loan was ACTIVE and approved after it was
+        // closed or written off — a finished book still must not grow (same rule as accrual).
+        if (loan.status !== LoanStatus.ACTIVE) {
+          throw unprocessable(`Loan is ${loan.status} — penalty can only be charged on an ACTIVE loan`);
+        }
+        await assertWithinPenaltyCeiling(em, tx, loan);
         const delta = zeroComponents();
         delta.PENALTY = round2(num(tx.amount));
+        await insertLines(em, tx.id, delta);
+        applyDeltas(loan, delta);
+        allocation = delta;
+        break;
+      }
+      case TransactionType.INTEREST_ACCRUAL: {
+        if (num(tx.amount) <= EPS) throw unprocessable('Interest accrual amount must be positive');
+        // Interest on money that is no longer owed would reopen a settled loan, so the charge
+        // only ever runs against a live one (the accrual job applies the same rule upstream).
+        if (loan.status !== LoanStatus.ACTIVE) {
+          throw unprocessable(`Loan is ${loan.status} — interest can only be accrued on an ACTIVE loan`);
+        }
+        const delta = zeroComponents();
+        delta.PAST_INTEREST = round2(num(tx.amount));
         await insertLines(em, tx.id, delta);
         applyDeltas(loan, delta);
         allocation = delta;
@@ -446,11 +603,26 @@ export async function postTransaction(txId: string, ctx: PostContext): Promise<P
       userAgent: ctx.userAgent ?? null,
     });
 
-    // Receipt only for money that actually arrived from the customer.
-    if (
+    // The auto-debit job is the only flow that stamps a period on a PAYMENT, so a payment carrying one
+    // is a debit it settled from credit the customer deposited. No cash arrived now, so it is announced
+    // as the instalment it closed rather than as a payment receipt.
+    const autoDebitPeriod = tx.transactionType === TransactionType.PAYMENT ? tx.periodIndex : null;
+    if (autoDebitPeriod !== null) {
+      await notifyAutoDebitPosted(em, {
+        loanId: loan.id,
+        customerId: tx.customerId,
+        amount: num(tx.amount),
+        currency: tx.currency,
+        periodIndex: autoDebitPeriod,
+        paidAt: tx.postedAt ?? new Date(),
+        allocation: allocation ?? zeroComponents(),
+        remaining: num(loan.currentOutstanding),
+      });
+    } else if (
       tx.transactionType === TransactionType.PAYMENT ||
       tx.transactionType === TransactionType.SETTLEMENT_PAYMENT
     ) {
+      // Receipt only for money that actually arrived from the customer.
       await notifyPaymentPosted(em, {
         loanId: loan.id,
         customerId: tx.customerId,
@@ -459,6 +631,52 @@ export async function postTransaction(txId: string, ctx: PostContext): Promise<P
         paidAt: tx.postedAt ?? new Date(),
         allocation,
         remaining: num(loan.currentOutstanding),
+      });
+    }
+
+    // Money no instalment could absorb is the customer's credit, not settled debt: the notice above
+    // only speaks for what it cleared, so the remainder needs a receipt of its own.
+    if (excess > EPS) {
+      await notifyCreditDeposited(em, {
+        loanId: loan.id,
+        customerId: tx.customerId,
+        amount: excess,
+        currency: tx.currency,
+        depositedAt: tx.postedAt ?? new Date(),
+        note: tx.reason,
+      });
+    }
+
+    // Movements that change what the customer owes under an authority. Approval of a non-disbursement
+    // subject makes no decision mail, so posting is the point these reach the customer and the staff
+    // who released it.
+    if (tx.transactionType === TransactionType.PENALTY) {
+      await notifyPenaltyPosted(em, {
+        loanId: loan.id,
+        amount: num(tx.amount),
+        currency: tx.currency,
+        postedAt: tx.postedAt ?? new Date(),
+        reason: tx.reason,
+      });
+    }
+    if (tx.transactionType === TransactionType.WAIVER) {
+      await notifyWaiverPosted(em, {
+        loanId: loan.id,
+        amount: num(tx.amount),
+        currency: tx.currency,
+        components: allocation ?? zeroComponents(),
+        postedAt: tx.postedAt ?? new Date(),
+        reason: tx.reason,
+      });
+    }
+    if (tx.transactionType === TransactionType.WRITE_OFF) {
+      await notifyWriteOffPosted(em, {
+        loanId: loan.id,
+        amount: num(tx.amount),
+        currency: tx.currency,
+        components: allocation ?? zeroComponents(),
+        postedAt: tx.postedAt ?? new Date(),
+        reason: tx.reason,
       });
     }
 

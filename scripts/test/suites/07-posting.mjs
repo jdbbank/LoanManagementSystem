@@ -7,7 +7,7 @@
 // only read, never written to (their penalty probes are rejected and purged by transaction id).
 //
 // Accrual cases always pass an explicit `asOf` so the numbers stay deterministic on later reruns.
-import { api as http, errorMessage, expected, rows, statusCheck, check } from '../lib/harness.mjs';
+import { api as http, errorMessage, expected, payloadOf, rows, statusCheck, check, withPinnedPolicies } from '../lib/harness.mjs';
 import { accruedPenaltyCents, billedInterestCents, fmt, postEvent, toCents, toLak, totalOf } from '../oracle.mjs';
 
 const CAT = 'posting';
@@ -27,6 +27,13 @@ const sumMoney = (c) => COMPS.reduce((acc, k) => acc + Number(c[k] ?? 0), 0);
 const asLak = (c) => COMPS.map((k) => `${k}=${fmt(c[k])}`).join(' ');
 
 export default async function suite(ctx) {
+  // reset-db keeps system_config, so the payment policy is pinned to the shipped defaults for this
+  // suite and put back afterwards: with the job switched on by an earlier run, the live auto-debit
+  // timer would move money on the book while these cases are still counting it.
+  return withPinnedPolicies(ctx.api, ['payment'], () => run(ctx));
+}
+
+async function run(ctx) {
   const { tokens, conn, api: adminApi } = ctx;
   // ctx.api fills in the admin token when none is given; an unauthenticated case must pass
   // token:null explicitly and bypass that default or it silently tests as admin.
@@ -125,6 +132,43 @@ export default async function suite(ctx) {
   const txDetail = async (id) => (await api('GET', `/api/transactions/${id}`)).json?.data ?? null;
   const txLines = (id) => rows(conn, 'SELECT component, amount FROM financial_transaction_lines WHERE transactionId = ? ORDER BY component', [id]);
   const schedule = (id, asOf) => api('GET', `/api/loans/${id}/schedule${asOf ? `?asOf=${encodeURIComponent(asOf)}` : ''}`).then((r) => r.json?.data);
+
+  // Mail queued by a money event lives in the same transaction as the ledger write, so it is readable
+  // immediately (transport=log: nothing leaves the machine, and payload is plain JSON for these types).
+  const approverEmails = (
+    await rows(
+      conn,
+      "SELECT email FROM users WHERE role IN ('CHECKER','HEAD_APPROVER','ADMIN') AND isActive = 1 AND email IS NOT NULL AND email <> '' ORDER BY email",
+      [],
+    )
+  ).map((r) => r.email);
+  const borrowerEmail = async (loanId) =>
+    (await rows(conn, 'SELECT c.email FROM customers c JOIN loans l ON l.customerId = c.id WHERE l.id = ?', [loanId]))[0]?.email ?? null;
+  /** formatAmount() ให้ค่าแบบ "100,000 LAK" จึงเทียบเป็นตัวเลขล้วน */
+  const moneyOf = (value) => String(value ?? '').replace(/[^\d.]/g, '');
+  const reaches = (mail, audience) =>
+    audience.every((email) => mail.some((r) => String(r.recipientEmail).toLowerCase() === String(email).toLowerCase()));
+  // payload is sealed for every event type, so the fields open in JS — JSON_EXTRACT on that text
+  // is not valid JSON and answers NULL, which would compare nulls instead of the announced amounts.
+  const mailFor = (loanId, type, amount = null) =>
+    rows(
+      conn,
+      'SELECT recipientEmail, status, payload FROM notification_outbox WHERE loanId = ? AND type = ? ORDER BY createdAt',
+      [loanId, type],
+    )
+      .then((rs) =>
+        rs.map((row) => {
+          const payload = payloadOf(row);
+          return {
+            ...row,
+            amount: payload.amount ?? null,
+            reason: payload.reason ?? null,
+            remaining: payload.remaining ?? null,
+            components: payload.components ?? null,
+          };
+        }),
+      )
+      .then((rs) => (amount === null ? rs : rs.filter((r) => moneyOf(r.amount) === moneyOf(amount))));
 
   const levelToken = { CHECKER: tokens.checker1, HEAD: tokens.head, ADMIN: tokens.admin };
   const findStep = async (txId, token) => {
@@ -228,7 +272,7 @@ export default async function suite(ctx) {
       ['POST /transactions/adjustments', '/api/transactions/adjustments', { loanId: L.id, componentAmounts: { PENALTY: 0, PAST_INTEREST: 1000, PAST_PRINCIPAL: 0 }, reason: 'role probe' }],
     ];
     for (const [label, path, body] of roleCases) {
-      statusCheck(CAT, `${label} بدون token: 401 (ไม่ใช่ 403)`, await api('POST', path, { token: null, body }), 401, { input: 'anonymous' });
+      statusCheck(CAT, `${label} ไม่มี token: 401 (ไม่ใช่ 403)`, await api('POST', path, { token: null, body }), 401, { input: 'anonymous' });
       statusCheck(CAT, `${label} ด้วย VIEWER: 403`, await api('POST', path, { token: tokens.viewer, body }), 403, { input: 'viewer', messageIncludes: 'Requires role' });
     }
 
@@ -332,6 +376,18 @@ export default async function suite(ctx) {
       actual: `HTTP ${repost.status} ${errorMessage(repost)}, lines=${sepLineCount}`,
       pass: repost.status >= 400 && sepLineCount === 1,
     });
+    const sepMail = await mailFor(L.id, 'PENALTY_POSTED', 100000);
+    const sepAudience = [await borrowerEmail(L.id), ...approverEmails];
+    check(CAT, 'โพสต์ค่าปรับเกิดเมล PENALTY_POSTED ถึงผู้กู้ +ผู้มีอำนาจ และโพสต์ซ้ำไม่เพิ่มเมล', {
+      input: 'notification_outbox type=PENALTY_POSTED ของ L, amount 100,000',
+      expected: `${sepAudience.length} แถว = ${sepAudience.join(', ')} | reason 'separation probe' | remaining ไม่ใช่ค่าว่าง`,
+      actual: `${sepMail.length} แถว ${JSON.stringify(sepMail.map((r) => [r.recipientEmail, r.amount, r.reason, r.remaining]))}`,
+      pass:
+        sepMail.length === sepAudience.length &&
+        reaches(sepMail, sepAudience) &&
+        sepMail.every((r) => r.reason === 'separation probe' && !!r.remaining),
+      note: 'เมลถูกคิวใน transaction เดียวกับการโพสต์ (transactional outbox) จึงไม่มีทางหลุดเมื่อ process ล่มกลางคัน ส่วน retry เป็นหน้าที่ dispatcher ที่ suite 11 ตรวจ',
+    });
 
     // ================================================== E. rejected work never touch the ledger
     const rejected = await api('POST', '/api/transactions/waivers', { token: tokens.op1, body: { loanId: L.id, componentAmounts: { PENALTY: 50000, PAST_INTEREST: 0, PAST_PRINCIPAL: 0 }, reason: 'reject probe' } });
@@ -359,6 +415,13 @@ export default async function suite(ctx) {
     statusCheck(CAT, 'post txn ที่ reject แล้ว: 422', await postTx(rejectedId), 422, { input: 'POST /:id/post on REJECTED', messageIncludes: 'Only APPROVED transactions can be posted' });
     const rejectedLines = (await txLines(rejectedId)).length;
     check(CAT, 'txn ที่ reject ไม่มี ledger line เลย', { input: 'lines of the rejected waiver', expected: 0, actual: String(rejectedLines), pass: rejectedLines === 0 });
+    const rejectedWaiverMail = await mailFor(L.id, 'WAIVER_POSTED');
+    check(CAT, 'waiver ที่ถูกปฏิเสธต้องไม่มีเมล WAIVER_POSTED (คิวเฉพาะตอนโพสต์)', {
+      input: 'notification_outbox type=WAIVER_POSTED ของ L',
+      expected: '0 แถว',
+      actual: `${rejectedWaiverMail.length} แถว ${JSON.stringify(rejectedWaiverMail.map((r) => r.amount))}`,
+      pass: rejectedWaiverMail.length === 0,
+    });
 
     // ================================================== F. penalty accrual (FIXED_PER_PERIOD + grace + cap)
     const notOverdue = await api('POST', '/api/transactions/penalties/accrue', { token: tokens.op1, body: { loanId: RV.id, asOf: '2026-02-06T00:00:00.000Z', reason: 'not overdue' } });
@@ -405,6 +468,15 @@ export default async function suite(ctx) {
     await approveWorkflow(fixedTxId);
     statusCheck(CAT, 'accrual ที่อนุมัติครบแล้วโพสต์ได้: 200', await postTx(fixedTxId), 200, { input: 'POST /:id/post' });
     await verifyPosted(FIXED, fixedTxId, { type: 'PENALTY', amountCents: fixedExpected }, 'accrual FIXED 25,000');
+    const accrualMail = await mailFor(FIXED.id, 'PENALTY_POSTED', toLak(fixedExpected));
+    const accrualAudience = [await borrowerEmail(FIXED.id), ...approverEmails];
+    check(CAT, 'ค่าปรับแบบ accrual ที่โพสต์แล้วเกิดเมล PENALTY_POSTED แบบเดียวกับค่าปรับ manual', {
+      input: 'notification_outbox type=PENALTY_POSTED ของ FIXED, amount = ยอด accrual',
+      expected: `${accrualAudience.length} แถวถึงผู้กู้ +ผู้มีอำนาจครบ, remaining ไม่ใช่ค่าว่าง`,
+      actual: `${accrualMail.length} แถว ${JSON.stringify(accrualMail.map((r) => [r.recipientEmail, r.amount, r.remaining]))}`,
+      pass: accrualMail.length === accrualAudience.length && reaches(accrualMail, accrualAudience) && accrualMail.every((r) => !!r.remaining),
+      note: 'ทั้ง manual และ accrual ผ่าน postTransaction ตัวเดียวกัน จึงได้เมลชนิดเดียวกัน — หน้านี้คือช่องว่างเดิมที่การเรียกเก็บค่าปรับไม่เคยแจ้งผู้กู้อย่างเป็นทางการ',
+    });
     const doubleAccrual = await api('POST', '/api/transactions/penalties/accrue', { token: tokens.op1, body: { loanId: FIXED.id, asOf: AS_OF } });
     check(CAT, 'accrue ซ้ำที่ asOf เดิม: ไม่เกิด billed ซ้ำ (422 ไม่มีค่าปรับเหลือ)', {
       input: 'second accrual, same asOf',
@@ -467,19 +539,17 @@ export default async function suite(ctx) {
       createdTx.push(woProbeId);
     }
 
+    const billedBeforeBig = states.get(FIXED.id).components.PENALTY;
+    const capOfFixed = (1000000 * 10) / 100;
     const manualBig = await runThrough('/api/transactions/penalties', { loanId: FIXED.id, amount: 500000, reason: 'manual penalty beyond the product cap' });
-    if (manualBig.posted?.status === 200) {
-      await verifyPosted(FIXED, manualBig.txId, { type: 'PENALTY', amountCents: toCents(500000) }, 'manual penalty 500,000');
-      const capOfFixed = (1000000 * 10) / 100;
-      const penaltyOutstanding = states.get(FIXED.id).components.PENALTY;
-      check(CAT, 'manual penalty ต้องอยู่ใต้ cap ของผลิตภัณฑ์ (F-PEN-2)', {
-        input: `manual 500,000 on a product capped at ${fmt(toCents(capOfFixed))}`,
-        expected: `outstanding penalty <= ${fmt(toCents(capOfFixed))}`,
-        actual: `outstanding penalty ${fmt(penaltyOutstanding)}, accrued(suggested only) ${fmt(toCents(capOfFixed))}`,
-        pass: penaltyOutstanding <= cent(capOfFixed),
-        note: 'F-PEN-2: cap ถูกใช้เฉพาะค่าปรับที่ระบบคำนวณ (penaltySuggested) — เส้นทาง manual ไร้ขอบเขต',
-      });
-    }
+    const bigView = outstandingOf(await loanView(FIXED.id) ?? {});
+    check(CAT, 'manual penalty เกิน cap ของผลิตภัณฑ์: โพสต์ไม่ผ่าน 422 ยอดคงค้างไม่ขยับ (F-PEN-2)', {
+      input: `manual 500,000 on a product capped at ${fmt(toCents(capOfFixed))}, already billed ${fmt(billedBeforeBig)}`,
+      expected: `422 refused at posting time, penalty stays ${fmt(billedBeforeBig)} (<= ${fmt(toCents(capOfFixed))})`,
+      actual: `post HTTP ${manualBig.posted?.status ?? 'not reached'} ${errorMessage(manualBig.posted ?? manualBig.made).slice(0, 90)} | penalty ${fmt(bigView.PENALTY)}`,
+      pass: manualBig.posted?.status === 422 && bigView.PENALTY === billedBeforeBig && bigView.PENALTY <= cent(capOfFixed),
+      note: 'F-PEN-2: เพดาน maxPercentOfPrincipal ตรวจสอบตอนโพสต์ เพดานคือยอดที่เรียกเก็บสะสม (waiver ไม่ซื้อสิทธิ์คืน)',
+    });
 
     // ================================================== H. waiver + original transaction stays immutable
     const penaltyBefore = states.get(FIXED.id).components.PENALTY;
@@ -501,6 +571,18 @@ export default async function suite(ctx) {
         expected: asLak(states.get(FIXED.id).components),
         actual: asLak(nowOutstanding),
         pass: COMPS.every((c) => nowOutstanding[c] === states.get(FIXED.id).components[c]) && nowOutstanding.PENALTY === 0,
+      });
+      const waiverMail = await mailFor(FIXED.id, 'WAIVER_POSTED', toLak(penaltyBefore));
+      const waiverAudience = [await borrowerEmail(FIXED.id), ...approverEmails];
+      check(CAT, 'waiver ที่โพสต์แล้วเกิดเมล WAIVER_POSTED ระบุส่วนที่ยกและยอดคงเหลือใหม่', {
+        input: 'notification_outbox type=WAIVER_POSTED ของ FIXED, amount = ค่าปรับที่ยกทั้งก้อน',
+        expected: `${waiverAudience.length} แถวถึงผู้กู้ +ผู้มีอำนาจ, components + remaining ไม่ใช่ค่าว่าง`,
+        actual: `${waiverMail.length} แถว ${JSON.stringify(waiverMail.map((r) => [r.recipientEmail, r.amount, r.components, r.remaining]))}`,
+        pass:
+          waiverMail.length === waiverAudience.length &&
+          reaches(waiverMail, waiverAudience) &&
+          waiverMail.every((r) => !!r.components && !!r.remaining),
+        note: 'การยกหนี้คือเหตุการณ์ที่เปลี่ยนจำนวนเงินที่ลูกหนี้ต้องจ่าย จึงต้องถึงผู้มีอำนาจทุกคนด้วย ไม่ใช่เฉพาะผู้กู้',
       });
     }
 
@@ -589,6 +671,19 @@ export default async function suite(ctx) {
         actual: { status: statusNow, outstandingTotal: sumMoney(zeroNow), amount: String(woTx?.amount) },
         pass: statusNow === 'WRITTEN_OFF' && sumMoney(zeroNow) === 0 && cent(woTx?.amount ?? -1) === totalOf(snapshot),
       });
+      const woMails = await mailFor(WO.id, 'WRITE_OFF_POSTED');
+      const woAudience = [await borrowerEmail(WO.id), ...approverEmails];
+      check(CAT, 'write-off ทั้งสองครั้งเกิดเมล WRITE_OFF_POSTED ถึงผู้กู้ +ผู้มีอำนาจ พร้อมส่วนที่ล้าง', {
+        input: 'notification_outbox type=WRITE_OFF_POSTED ของ WO (บางส่วน 60,000 + ทั้งจำนวน)',
+        expected: `${woAudience.length * 2} แถว = ${woAudience.length} ที่อยู่ x 2 เหตุการณ์, components + remaining ไม่ใช่ค่าว่าง`,
+        actual: `${woMails.length} แถว ${JSON.stringify(woMails.map((r) => [r.recipientEmail, r.amount, r.components, r.remaining]))}`,
+        pass:
+          woMails.length === woAudience.length * 2 &&
+          reaches(woMails.filter((r) => moneyOf(r.amount) === '60000'), woAudience) &&
+          reaches(woMails.filter((r) => moneyOf(r.amount) === moneyOf(toLak(totalOf(snapshot)))), woAudience) &&
+          woMails.every((r) => !!r.components && !!r.remaining),
+        note: 'เมลล้างหนี้ระบุว่ายอดคงเหลือเป็น 0 แต่สิทธิ์ติดตามหนี้อย่างเดิมยังอยู่ — จึงต่างจาก WAIVER_POSTED ชัดเจนในเนื้อหา แม้ผู้รับชุดเดียวกัน',
+      });
     }
     const revWo = await runThrough('/api/transactions/write-off-reversals', { referenceTransactionId: fullWriteOff.txId, amount: 200000, reason: 'กลับมาเป็นหนี้บางส่วน' });
     if (revWo.posted?.status === 200) {
@@ -658,7 +753,9 @@ export default async function suite(ctx) {
     }
 
     // ================================================== L. closing then reopening through the ledger
-    const CLOSE = await newLoan({ customerId: C5, productCode: 'TST-FLAT-M6', principal: 500000, disbursedAt: '2026-06-05T00:00:00.000Z', label: 'CLOSE' });
+    // the closing payment is the whole debt, so the loan is disbursed a full term back: the
+    // collection gate only lets staff settle instalments that have arrived
+    const CLOSE = await newLoan({ customerId: C5, productCode: 'TST-FLAT-M6', principal: 500000, disbursedAt: '2025-06-05T00:00:00.000Z', label: 'CLOSE' });
     const closeTotalLak = toLak(totalOf(states.get(CLOSE.id).components));
     const exactPay = await pay(CLOSE, closeTotalLak);
     await verifyPosted(CLOSE, exactPay.txId, { type: 'PAYMENT', amountCents: toCents(closeTotalLak) }, `ชำระปิดบัญชีพอดี ${fmt(toCents(closeTotalLak))}`);

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getDataSource } from '../datasource';
 import { LoanProduct } from '../entities/loan-product.entity';
-import { DEFAULT_PENALTY_POLICY, PenaltyMode, PenaltyPolicy, PeriodUnit, UserRole } from '../entities/types';
+import { DEFAULT_PENALTY_POLICY, InterestMethod, PenaltyMode, PenaltyPolicy, PeriodUnit, UserRole } from '../entities/types';
 import { termMonthsOf } from '../utils/period';
 import {
   assertPenaltyPolicyMakesSense,
@@ -10,6 +10,7 @@ import {
   mergePenaltyPolicy,
 } from '../services/penalty-policy.service';
 import { writeAudit } from '../services/audit.service';
+import { notifyLoanProductCreated } from '../services/notification-events.service';
 import { authMiddleware, requireAuth, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/error';
 import { asyncHandler } from '../utils/async-handler';
@@ -55,14 +56,22 @@ const createProductSchema = z.object({
   name: z.string().min(1).max(191),
   interestRate: z.number().min(0).max(100000),
   interestRatePeriod: z.nativeEnum(PeriodUnit).optional(),
+  /** Omitted means FLAT, the historic lump-sum billing, so older callers are unchanged. */
+  interestMethod: z.nativeEnum(InterestMethod).optional(),
   termValue: z.number().int().min(1).max(7300).optional(),
   termUnit: z.nativeEnum(PeriodUnit).optional(),
   /** Legacy: a bare month count, equivalent to `termValue` with `termUnit: MONTH`. */
   termMonths: z.number().int().min(1).max(360).optional(),
   penaltyPolicy: penaltyPolicyInput.optional(),
+  /** Percent of the principal still owed, taken when the customer settles the whole debt early. */
+  earlySettlementFeePercent: z.number().min(0).max(100).optional(),
   currency: z.string().length(3).optional(),
   description: z.string().max(255).optional(),
 });
+
+/** How the pricing reads in an audit line, so the trail explains itself without a lookup. */
+const describeInterest = (method: InterestMethod): string =>
+  method === InterestMethod.DECLINING ? 'declining balance (equal principal)' : 'flat (billed once at disbursement)';
 
 router.post(
   '/',
@@ -87,10 +96,12 @@ router.post(
       name: body.name,
       interestRate: body.interestRate,
       interestRatePeriod: body.interestRatePeriod ?? PeriodUnit.YEAR,
+      interestMethod: body.interestMethod ?? InterestMethod.FLAT,
       termValue,
       termUnit,
       termMonths: termMonthsOf(termValue, termUnit),
       penaltyPolicy,
+      earlySettlementFeePercent: body.earlySettlementFeePercent ?? 0,
       currency: body.currency ?? 'LAK',
       description: body.description ?? null,
     });
@@ -100,8 +111,15 @@ router.post(
       userId: req.user!.id,
       reason:
         `${product.code} ${product.name} — ${product.interestRate}%/${product.interestRatePeriod.toLowerCase()}, ` +
-        `${product.termValue} ${product.termUnit.toLowerCase()}, ${describePenaltyPolicy(penaltyPolicy)}`,
+        `interest ${describeInterest(product.interestMethod)}, ` +
+        `${product.termValue} ${product.termUnit.toLowerCase()}, ${describePenaltyPolicy(penaltyPolicy)}, ` +
+        `early-settlement fee ${product.earlySettlementFeePercent}%`,
       ip: req.ip ?? null,
+    });
+    await notifyLoanProductCreated(ds.manager, {
+      productId: product.id,
+      createdByName: req.user!.fullName,
+      actorUserId: req.user!.id,
     });
     res.status(201).json({ product });
   })
@@ -113,14 +131,17 @@ const updateProductSchema = z.object({
   description: z.string().max(255).optional(),
   interestRate: z.number().min(0).max(100000).optional(),
   interestRatePeriod: z.nativeEnum(PeriodUnit).optional(),
+  interestMethod: z.nativeEnum(InterestMethod).optional(),
   termValue: z.number().int().min(1).max(7300).optional(),
   termUnit: z.nativeEnum(PeriodUnit).optional(),
   penaltyPolicy: penaltyPolicyInput.optional(),
+  earlySettlementFeePercent: z.number().min(0).max(100).optional(),
 });
 
 /**
  * Re-pricing a product only affects loans created afterwards — every loan snapshots rate,
- * term and penalty policy at disbursement, so the ledger of an existing loan never moves.
+ * interest method, term and penalty policy at disbursement, so the ledger of an existing
+ * loan never moves.
  */
 router.patch(
   '/:id',
@@ -139,6 +160,10 @@ router.patch(
     if (body.description !== undefined) product.description = body.description;
     if (body.interestRate !== undefined) product.interestRate = body.interestRate;
     if (body.interestRatePeriod !== undefined) product.interestRatePeriod = body.interestRatePeriod;
+    if (body.interestMethod !== undefined) product.interestMethod = body.interestMethod;
+    if (body.earlySettlementFeePercent !== undefined) {
+      product.earlySettlementFeePercent = body.earlySettlementFeePercent;
+    }
 
     const termChanged = body.termValue !== undefined || body.termUnit !== undefined;
     if (termChanged) {
@@ -159,7 +184,8 @@ router.patch(
       userId: req.user!.id,
       reason:
         `${product.code}: ${Object.keys(body).join(', ')} — now ${product.interestRate}%/` +
-        `${product.interestRatePeriod.toLowerCase()}, ${product.termValue} ${product.termUnit.toLowerCase()}, ` +
+        `${product.interestRatePeriod.toLowerCase()}, interest ${describeInterest(product.interestMethod)}, ` +
+        `${product.termValue} ${product.termUnit.toLowerCase()}, ` +
         `${describePenaltyPolicy(product.penaltyPolicy)}`,
       ip: req.ip ?? null,
     });

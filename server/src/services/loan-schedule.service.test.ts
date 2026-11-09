@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_PENALTY_POLICY, PenaltyMode, PeriodUnit, SchedulePeriodStatus, type PenaltyPolicy } from '../entities/types';
 import {
   capAccruedPenalties,
+  isPeriodArrived,
   penaltyForPeriod,
   periodStatus,
+  placeInterestOnPeriods,
   spreadBilledPenalty,
   type LoanSchedulePeriod,
 } from './loan-schedule.service';
@@ -126,5 +128,60 @@ describe('periodStatus', () => {
 
   it('reads PENDING before the due date', () => {
     expect(periodStatus(period({ dueDate: day('2026-03-01') }), 0, asOf)).toBe(SchedulePeriodStatus.PENDING);
+  });
+});
+
+describe('isPeriodArrived', () => {
+  const asOf = day('2026-02-20');
+
+  it('opens a period exactly on the grace window that turns it DUE', () => {
+    expect(isPeriodArrived(period({ dueDate: day('2026-02-25') }), 7, asOf)).toBe(true);
+    expect(isPeriodArrived(period({ dueDate: day('2026-02-28') }), 7, asOf)).toBe(false);
+  });
+
+  it('counts past-due and due-on-the-day periods as arrived', () => {
+    expect(isPeriodArrived(period({ dueDate: day('2026-01-05') }), 0, asOf)).toBe(true);
+    expect(isPeriodArrived(period({ dueDate: asOf }), 0, asOf)).toBe(true);
+  });
+
+  it('keeps a far-ahead instalment closed even under a long grace window', () => {
+    const far = period({ dueDate: day('2026-04-01') });
+    expect(isPeriodArrived(far, 3, asOf)).toBe(false);
+    expect(isPeriodArrived(far, 15, asOf)).toBe(false);
+  });
+});
+
+describe('placeInterestOnPeriods', () => {
+  it('puts every booked charge on the period the ledger says it belongs to', () => {
+    const byPeriod = new Map([
+      [1, 120_000],
+      [2, 115_000],
+      [3, 110_000],
+    ]);
+    expect(placeInterestOnPeriods(byPeriod, 345_000, 6)).toEqual([120_000, 115_000, 110_000, 0, 0, 0]);
+  });
+
+  it('spreads interest booked without a period (a lump sum or a correction) over the term', () => {
+    const byPeriod = new Map([[1, 50_000]]);
+    const shares = placeInterestOnPeriods(byPeriod, 50_000 + 30, 3);
+    expect(shares).toEqual([50_010, 10, 10]);
+    expect(shares.reduce((a, b) => a + b, 0)).toBeCloseTo(50_030, 2);
+  });
+
+  it('never loses a charge whose period number is outside the term', () => {
+    const shares = placeInterestOnPeriods(new Map([[9, 10_000]]), 10_000, 3);
+    expect(shares).toHaveLength(3);
+    expect(shares.reduce((a, b) => a + b, 0)).toBe(10_000);
+  });
+
+  it('keeps booked periods in place while an extra correction is spread around them', () => {
+    const byPeriod = new Map([
+      [1, 120_000],
+      [2, 115_000],
+    ]);
+    const shares = placeInterestOnPeriods(byPeriod, 240_000, 4);
+    expect(shares.reduce((a, b) => a + b, 0)).toBe(240_000);
+    expect(shares[0]).toBeGreaterThan(120_000);
+    expect(shares[1]).toBeGreaterThan(115_000);
   });
 });

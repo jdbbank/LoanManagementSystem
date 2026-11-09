@@ -7,21 +7,32 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Re-reads the account after a self-service profile edit so the header cannot go stale. */
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** The auth routes answer with the full JWT payload; only these four fields drive the UI. */
+async function fetchMe(): Promise<AuthUser> {
+  const u = (await api.get('/auth/me')).data.user as AuthUser;
+  return { id: u.id, username: u.username, fullName: u.fullName, role: u.role };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(Boolean(localStorage.getItem(TOKEN_KEY)));
 
+  const refresh = useCallback(async () => {
+    if (!localStorage.getItem(TOKEN_KEY)) return;
+    setUser(await fetchMe());
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return;
-    api
-      .get('/auth/me')
-      .then((res) => res.data.user as AuthUser)
-      .then((u) => setUser({ id: u.id, username: u.username, fullName: u.fullName, role: u.role }))
+    fetchMe()
+      .then(setUser)
       .catch(() => localStorage.removeItem(TOKEN_KEY))
       .finally(() => setLoading(false));
   }, []);
@@ -41,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, loading, login, logout }), [user, loading, login, logout]);
+  const value = useMemo(() => ({ user, loading, login, logout, refresh }), [user, loading, login, logout, refresh]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -16,10 +16,13 @@ const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const CreditsPage = lazy(() => import('./pages/CreditsPage'));
 const CustomerKycPage = lazy(() => import('./pages/CustomerKycPage'));
+const ManualPage = lazy(() => import('./pages/ManualPage'));
 const PaymentRequestsPage = lazy(() => import('./pages/PaymentRequestsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const ReconciliationPage = lazy(() => import('./pages/ReconciliationPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const RestructuresPage = lazy(() => import('./pages/RestructuresPage'));
 const SettlementsPage = lazy(() => import('./pages/SettlementsPage'));
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
@@ -55,6 +58,7 @@ export default function App() {
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/loans" element={<LoansPage />} />
             <Route path="/loans/:id" element={<LoanDetailPage />} />
+            <Route path="/restructures" element={<RestructuresPage />} />
             <Route path="/payment-requests" element={<PaymentRequestsPage />} />
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/approvals" element={<ApprovalsPage />} />
@@ -63,7 +67,9 @@ export default function App() {
             <Route path="/reconciliation" element={<ReconciliationPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/audit" element={<AuditPage />} />
+            <Route path="/manual" element={<ManualPage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/admin" element={<AdminPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

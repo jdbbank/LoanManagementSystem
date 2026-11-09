@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
@@ -24,6 +25,9 @@ const INSERT_ORDER = [
   'user_avatars', 'user_avatar_contents', 'audit_logs',
 ];
 const KEPT_TABLES = ['system_config', 'email_templates'];
+// Derived tables the loader fills from the rows above rather than from the deterministic dataset.
+// `user_password_history` is what the no-reuse rule reads, so a fresh book needs one row per account.
+const DERIVED_TABLES = ['user_password_history'];
 
 const die = (msg) => {
   console.error(`\n[seed] ABORT: ${msg}`);
@@ -85,8 +89,21 @@ async function main() {
   const db = loadEnv();
   const dataset = buildDataset({ seed: SEED });
 
+  // The rotation gate in Stage D reads `passwordChangedAt`, so the seed owns it: a simulated book
+  // carrying the dataset's story dates would have every password past its limit, and the very first
+  // login of the very first suite would be refused. Stamping the instant the hash is written is what
+  // the application itself does when it creates an account, and it leaves the rule armed at its
+  // production default instead of switching it off.
+  //
+  // Written as UTC text on purpose, like every other DATETIME in the dataset: this connection has no
+  // `timezone: 'Z'` (the server datasource does), so a JS Date would be serialised in the machine's
+  // own zone and then read back 7 hours ahead of the clock — which revokes every session the server
+  // mints, because authMiddleware compares `iat` against `passwordChangedAt`.
+  const passwordsSetAt = new Date();
+  const passwordsSetAtSql = passwordsSetAt.toISOString().slice(0, 23).replace('T', ' ');
   for (const user of dataset.rows.users) {
     user.passwordHash = bcrypt.hashSync(TEST_PASSWORD, bcrypt.genSaltSync(10));
+    user.passwordChangedAt = passwordsSetAtSql;
   }
 
   const conn = await mysql.createConnection({
@@ -105,16 +122,28 @@ async function main() {
     [db.name],
   );
   const tables = existing.map((r) => r.t);
-  const missing = INSERT_ORDER.filter((t) => !tables.includes(t));
-  if (missing.length) die(`schema missing tables ${missing.join(', ')} — start the server once so synchronize creates them`);
+  const missing = [...INSERT_ORDER, ...DERIVED_TABLES].filter((t) => !tables.includes(t));
+  if (missing.length) die(`schema missing tables ${missing.join(', ')} — run: npm run db:migrate -w server`);
 
   const columnsFor = {};
   for (const t of tables) columnsFor[t] = await tableColumns(conn, db.name, t);
 
+  // users.tenantId is NOT NULL and the unique indexes are per organisation, so every account needs the
+  // id the migration seeded rather than an invented one. Read from the DB: this file must keep producing
+  // the same book whether the tenant id is ...001 or whatever a rebuilt environment happens to hold.
+  if (columnsFor.users?.includes('tenantId')) {
+    if (!tables.includes('tenants')) die('users.tenantId exists but the tenants table does not — run: npm run db:migrate -w server');
+    const tenantCode = process.env.DEFAULT_TENANT_CODE || 'default';
+    const [[tenant]] = await conn.query(`SELECT \`id\` FROM \`${db.name}\`.\`tenants\` WHERE \`code\` = ?`, [tenantCode]);
+    if (!tenant) die(`no tenants row for code ${tenantCode} — run: npm run db:migrate -w server`);
+    for (const user of dataset.rows.users) user.tenantId = tenant.id;
+    console.log(`[seed] tenant ${tenantCode} -> ${dataset.rows.users.length} accounts`);
+  }
+
   console.log(`[seed] database ${db.name} on ${db.host}:${db.port}`);
   await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-  for (const t of INSERT_ORDER) await conn.query(`TRUNCATE TABLE \`${db.name}\`.\`${t}\``);
-  console.log(`[seed] truncated ${INSERT_ORDER.length} data tables (kept: ${KEPT_TABLES.join(', ')})`);
+  for (const t of [...INSERT_ORDER, ...DERIVED_TABLES]) await conn.query(`TRUNCATE TABLE \`${db.name}\`.\`${t}\``);
+  console.log(`[seed] truncated ${INSERT_ORDER.length + DERIVED_TABLES.length} data tables (kept: ${KEPT_TABLES.join(', ')})`);
 
   const counts = {};
   for (const t of INSERT_ORDER) {
@@ -123,6 +152,18 @@ async function main() {
     console.log(`[seed] inserting ${t} (${(dataset.rows[t] ?? []).length})`);
     counts[t] = await insertRows(conn, db.name, t, columnsFor[t], dataset.rows[t] ?? []);
   }
+
+  // One history row per seeded account: the no-reuse rule reads this table, and without the first
+  // password recorded, going back to the seed password after one change would look legal.
+  const history = dataset.rows.users.map((u) => ({
+    id: randomUUID(),
+    userId: u.id,
+    passwordHash: u.passwordHash,
+    createdAt: passwordsSetAtSql,
+  }));
+  counts.user_password_history = await insertRows(conn, db.name, 'user_password_history', columnsFor.user_password_history, history);
+  console.log(`[seed] inserting user_password_history (${history.length})`);
+
   await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
   const [[{ outstanding }]] = await conn.query(
@@ -142,6 +183,7 @@ async function main() {
     referenceNow: dataset.expected.meta.referenceNow,
     database: db.name,
     testPasswordPolicyNote: `all seeded users share the password configured in dataset.mjs; it is not written to this file`,
+    passwordRotationNote: `every seeded password is stamped as changed at ${passwordsSetAt.toISOString()} and recorded in user_password_history, so the monthly rotation gate stays armed at its default and still accepts these accounts`,
     testUsers: dataset.rows.users.map((u) => ({
       username: u.username,
       role: u.role,

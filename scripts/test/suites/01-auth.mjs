@@ -105,6 +105,9 @@ export default async function suite(ctx) {
     ['GET', `/api/loans/${loanId}/schedule`, 'loan schedule'],
     ['GET', `/api/loans/${loanId}/allocation-preview?amount=100000`, 'allocation preview'],
     ['GET', `/api/customers/${customerId}/kyc/documents`, 'KYC documents'],
+    ['GET', `/api/customers/${customerId}/bank-accounts`, 'customer bank accounts'],
+    ['GET', `/api/customers/${customerId}/evidence`, 'customer evidence'],
+    ['GET', `/api/loans/${loanId}/evidence`, 'loan evidence'],
     ['GET', `/api/payment-requests`, 'payment requests'],
     ['GET', `/api/payment-requests/pending-count`, 'payment pending count'],
     ['GET', `/api/transactions`, 'transactions'],
@@ -119,7 +122,9 @@ export default async function suite(ctx) {
     ['GET', `/api/config/thresholds`, 'thresholds config'],
     ['GET', `/api/config/kyc`, 'kyc config'],
     ['GET', `/api/config/password`, 'password config'],
+    ['GET', `/api/config/security`, 'account security config'],
     ['GET', `/api/config/avatar`, 'avatar config'],
+    ['GET', `/api/config/evidence`, 'evidence config'],
   ];
   if (anyWorkflowId) reads.push(['GET', `/api/approvals/workflows/${anyWorkflowId}`, 'approval workflow detail']);
 
@@ -203,8 +208,10 @@ export default async function suite(ctx) {
     ['PUT', `/api/config/thresholds`, 'set thresholds', ['ADMIN']],
     ['PUT', `/api/config/kyc`, 'set kyc policy', ['ADMIN']],
     ['PUT', `/api/config/password`, 'set password policy', ['ADMIN']],
+    ['PUT', `/api/config/security`, 'set account security policy', ['ADMIN']],
     ['PUT', `/api/config/avatar`, 'set avatar policy', ['ADMIN']],
     ['POST', `/api/users/00000000-9000-4000-8000-000000000001/restore`, 'restore user', ['ADMIN']],
+    ['POST', `/api/users/00000000-9000-4000-8000-000000000001/unlock`, 'unlock account', ['ADMIN']],
     ['POST', `/api/users/00000000-9000-4000-8000-000000000001/send-reset-link`, 'send reset link', ['ADMIN']],
     ['POST', `/api/users/send-reset-links`, 'bulk reset links', ['ADMIN']],
     ['PATCH', `/api/users/00000000-9000-4000-8000-000000000001`, 'patch user', ['ADMIN']],

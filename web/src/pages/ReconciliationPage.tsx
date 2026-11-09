@@ -1,8 +1,9 @@
+import EmptyState from '../components/EmptyState';
+import TableSkeleton from '../components/TableSkeleton';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -101,7 +102,7 @@ export default function ReconciliationPage() {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>{t('reconciliation.recent')}</Typography>
-          {recordsQuery.isLoading ? <Stack sx={{ alignItems: 'center', py: 4 }}><CircularProgress /></Stack> : (
+          {recordsQuery.isLoading ? <TableSkeleton columns={6} label={t('common.loading')} /> : (
             <Table size="small">
               <TableHead><TableRow><TableCell>{t('reconciliation.runDate')}</TableCell><TableCell>{t('common.loan')}</TableCell><TableCell>{t('common.status')}</TableCell><TableCell>{t('reconciliation.operationalTotal')}</TableCell><TableCell>{t('reconciliation.historyTotal')}</TableCell><TableCell>{t('reconciliation.difference')}</TableCell></TableRow></TableHead>
               <TableBody>
@@ -121,7 +122,7 @@ export default function ReconciliationPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {recordsQuery.data?.data.length === 0 && <TableRow><TableCell colSpan={6} align="center">{t('reconciliation.noRuns')}</TableCell></TableRow>}
+                {recordsQuery.data?.data.length === 0 && <EmptyState colSpan={6} message={t('reconciliation.noRuns')} />}
               </TableBody>
             </Table>
           )}

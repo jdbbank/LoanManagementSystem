@@ -17,5 +17,8 @@ COPY web/package.json ./web/package.json
 COPY mailer/package.json ./mailer/package.json
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/mailer/dist ./mailer/dist
+# The mailer logs to stdout only (mailer/src/log.ts), so it needs no writable path and can run
+# unprivileged.
+USER node
 EXPOSE 4100
 CMD ["node", "mailer/dist/index.js"]

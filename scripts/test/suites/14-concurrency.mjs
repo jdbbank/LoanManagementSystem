@@ -17,7 +17,7 @@
 //
 // Like suites 06/07/08 every loan, transaction, agreement and account created here is deleted
 // again in `purge`, because suites 10/15 compare the seeded ledger against expected.json.
-import { PASSWORD, api as http, check, errorMessage, login, rows, settle, unseal } from '../lib/harness.mjs';
+import { PASSWORD, api as http, check, errorMessage, login, rows, settle, unseal, withPinnedPolicies } from '../lib/harness.mjs';
 import { billedInterestCents, fmt, postEvent, toCents, toLak, totalOf } from '../oracle.mjs';
 
 const CAT = 'concurrency';
@@ -69,6 +69,12 @@ const TABLES = [
 ];
 
 export default async function suite(ctx) {
+  // This suite races on user creation and on money, and suite 13 edits the same policies right before
+  // it, so both namespaces are pinned to the shipped defaults for the run and put back afterwards.
+  return withPinnedPolicies(ctx.api, ['payment', 'password'], () => run(ctx));
+}
+
+async function run(ctx) {
   const { tokens, conn, api: adminApi } = ctx;
   // ctx.api defaults to the admin token; a case that means "unauthenticated" must pass token:null.
   const api = (method, path, opts = {}) => (opts.token === null ? http(method, path, opts) : adminApi(method, path, opts));
@@ -241,8 +247,13 @@ export default async function suite(ctx) {
     rows(conn, `SELECT COUNT(*) n FROM audit_logs WHERE action=? AND ${where}`, [action, ...params]).then((r) => Number(r[0].n));
 
   /** maker -> checker; returns the APPROVED transaction id (deliberately not posted). */
-  async function approvedPaymentTx(loan, { cash = 0, credit = 0, checker = tokens.checker1 } = {}) {
-    const made = await createReq({ loanId: loan.id, cashAmount: cash, ...(credit ? { creditToApply: credit } : {}) });
+  async function approvedPaymentTx(loan, { cash = 0, credit = 0, purpose, checker = tokens.checker1 } = {}) {
+    const made = await createReq({
+      loanId: loan.id,
+      cashAmount: cash,
+      ...(purpose ? { purpose } : {}),
+      ...(credit ? { creditToApply: credit } : {}),
+    });
     if (made.status !== 201) throw new Error(`create request failed ${made.status} ${errorMessage(made)}`);
     const request = made.json.data.request;
     createdRequests.push(request.id);
@@ -324,7 +335,10 @@ export default async function suite(ctx) {
     const LC1 = await newLoan({ customerId: C5, principal: 1000000, disbursedAt: '2026-03-05T00:00:00.000Z', label: 'LC1' });
     const LC2 = await newLoan({ customerId: C5, principal: 1000000, disbursedAt: '2026-03-05T00:00:00.000Z', label: 'LC2' });
     const LC3 = await newLoan({ customerId: C5, principal: 1000000, disbursedAt: '2026-03-05T00:00:00.000Z', label: 'LC3' });
-    const LA = await newLoan({ customerId: C7, principal: 2000000, disbursedAt: '2026-03-05T00:00:00.000Z', label: 'LA' });
+    // Principal is deliberately large: this loan only feeds the double-decision race below, whose
+    // penalty has to stay under the product ceiling (30% of principal) so the guard itself is not
+    // what the case is testing.
+    const LA = await newLoan({ customerId: C7, principal: 20000000, disbursedAt: '2026-03-05T00:00:00.000Z', label: 'LA' });
     const LS = await newLoan({ customerId: C8, principal: 1500000, disbursedAt: '2026-03-05T00:00:00.000Z', label: 'LS' });
 
     const th = await thresholdsNow();
@@ -442,16 +456,29 @@ export default async function suite(ctx) {
 
     // ==================================================================== D. one credit balance, two loans, two postings
     const lc1State = states.get(LC1.id);
-    const payOffPlus = toLak(totalOf(lc1State.components) + toCents(400000));
-    const dOver = await approvedPaymentTx(LC1, { cash: payOffPlus });
-    const dOverPosted = await postTx(dOver.txId);
-    postEvent(lc1State, { type: 'PAYMENT', amountCents: toCents(payOffPlus), creditAppliedCents: 0 });
+    const lc1Owed = totalOf(lc1State.components);
+    // The gate will not take cash above the instalments that have arrived, so the 400,000 that has to
+    // sit in customer credit is brought as a deposit and the payoff then matches the book exactly.
+    const dDeposit = await approvedPaymentTx(LC1, { cash: 400000, purpose: 'DEPOSIT_TO_CREDIT' });
+    const dDepositPosted = await postTx(dDeposit.txId);
+    const lc1AfterDeposit = outstandingOf((await loanView(LC1.id)) ?? {});
     const dCreditRow = (await rows(conn, 'SELECT CAST(balance AS CHAR) b FROM customer_credits WHERE customerId=?', [C5]))[0];
-    ok('D fixture: จ่ายปิด LC1 เกิน 400,000 -> เกิด credit คงเหลือ 400,000 ตาม oracle',
-      is2xx(dOverPosted) && sameMoney(dCreditRow?.b ?? -1, 400000), {
-        input: `cash ${fmt(toCents(payOffPlus))} บนยอดค้าง ${fmt(totalOf(lc1State.components))}`,
-        expected: 'customer_credits.balance = 400000.00',
-        actual: `post=${dOverPosted.status} balance=${dCreditRow?.b} loan=${(await loanView(LC1.id))?.status}`,
+    ok('D fixture: ฝาก 400,000 เป็น deposit -> credit คงเหลือ 400,000 ส่วนหนี้ LC1 ไม่ขยับ',
+      is2xx(dDepositPosted) && sameMoney(dCreditRow?.b ?? -1, 400000) && COMPS.every((c) => lc1AfterDeposit[c] === lc1State.components[c]), {
+        input: `cash 400000.00 purpose DEPOSIT_TO_CREDIT บนยอดค้าง ${fmt(lc1Owed)}`,
+        expected: 'customer_credits.balance = 400000.00 และ outstanding เท่า oracle',
+        actual: `post=${dDepositPosted.status} balance=${dCreditRow?.b} outstanding=${COMPS.map((c) => fmt(lc1AfterDeposit[c])).join(',')}`,
+      });
+    const dOver = await approvedPaymentTx(LC1, { cash: toLak(lc1Owed) });
+    const dOverPosted = await postTx(dOver.txId);
+    postEvent(lc1State, { type: 'PAYMENT', amountCents: lc1Owed, creditAppliedCents: 0 });
+    const lc1Closed = await loanView(LC1.id);
+    const dCreditAfterPayoff = (await rows(conn, 'SELECT CAST(balance AS CHAR) b FROM customer_credits WHERE customerId=?', [C5]))[0];
+    ok('D fixture: จ่ายปิด LC1 พอดีทุกส่วน -> CLOSED และ credit 400,000 ยังอยู่ (ไม่ถูกดึงไปปิดหนี้เอง)',
+      is2xx(dOverPosted) && lc1Closed?.status === 'CLOSED' && sameMoney(dCreditAfterPayoff?.b ?? -1, 400000), {
+        input: `cash ${fmt(lc1Owed)} บนยอดค้าง ${fmt(lc1Owed)}`,
+        expected: 'status CLOSED + balance 400000.00',
+        actual: `post=${dOverPosted.status} loan=${lc1Closed?.status} balance=${dCreditAfterPayoff?.b}`,
       });
 
     const dR1 = await createReq({ loanId: LC2.id, cashAmount: 0, creditToApply: 400000 });

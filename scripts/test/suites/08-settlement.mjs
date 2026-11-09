@@ -9,13 +9,15 @@ import {
   errorMessage,
   expected,
   isSealed,
+  payloadOf,
   rows,
   settle,
   statusCheck,
   unseal,
   check,
+  withPinnedPolicies,
 } from '../lib/harness.mjs';
-import { allocateComponents, billedInterestCents, fmt, postEvent, toCents, toLak, totalOf } from '../oracle.mjs';
+import { allocateComponents, billedInterestCents, earlySettlementFeeCents, fmt, postEvent, toCents, toLak, totalOf } from '../oracle.mjs';
 
 const CAT = 'settlement';
 
@@ -34,6 +36,13 @@ const sumMoney = (c) => COMPS.reduce((acc, k) => acc + Number(c[k] ?? 0), 0);
 const asLak = (c) => COMPS.map((k) => `${k}=${fmt(c[k])}`).join(' ');
 
 export default async function suite(ctx) {
+  // reset-db keeps system_config, so the payment policy is pinned to the shipped defaults for this
+  // suite and put back afterwards: with the job switched on by an earlier run, the live auto-debit
+  // timer would move money on the book while these cases are still counting it.
+  return withPinnedPolicies(ctx.api, ['payment'], () => run(ctx));
+}
+
+async function run(ctx) {
   const { tokens, conn, api: adminApi } = ctx;
   // ctx.api injects the admin token when none is given; anonymous cases must pass token:null
   // explicitly so they really test 401 instead of silently running as admin.
@@ -78,6 +87,7 @@ export default async function suite(ctx) {
   const createdLoans = [];
   const createdTx = [];
   const createdAgreements = [];
+  const createdProducts = [];
 
   const purge = async () => {
     const subjects = [...createdTx, ...createdAgreements];
@@ -112,9 +122,45 @@ export default async function suite(ctx) {
       await conn.query('DELETE FROM customer_credits WHERE customerId IN (?)', [suiteCustomers]);
       await conn.query('DELETE FROM loans WHERE id IN (?)', [createdLoans]);
     }
+    if (createdProducts.length) {
+      await conn.query("DELETE FROM audit_logs WHERE action LIKE 'LOAN_PRODUCT_%' AND reason LIKE '%TST-S08-%'");
+      // LOAN_PRODUCT_CREATED ไม่มี loanId ให้กรองแบบที่ suite นี้ใช้กับแถวอื่น -- จับจาก code ของตัวเอง
+      // ใน payload (ซึ่งถูก seal จึงต้องเปิดใน JS) แล้วลบด้วย id
+      const productMailIds = (
+        await rows(conn, "SELECT id, payload FROM notification_outbox WHERE type = 'LOAN_PRODUCT_CREATED'", [])
+      )
+        .filter((row) => String(payloadOf(row).productCode ?? '').startsWith('TST-S08-'))
+        .map((row) => row.id);
+      if (productMailIds.length) await conn.query('DELETE FROM notification_outbox WHERE id IN (?)', [productMailIds]);
+      await conn.query('DELETE FROM loan_products WHERE id IN (?)', [createdProducts]);
+    }
   };
 
   const states = new Map();
+
+  /**
+   * Products priced before this feature all carry fee 0, so the fee stories need their own product.
+   * It is deleted in `purge` (code prefix TST-S08-), never a seeded one.
+   */
+  const newProduct = async ({ code, name, interestRate, termValue, termUnit, earlySettlementFeePercent }) => {
+    const res = await api('POST', '/api/loan-products', {
+      token: tokens.admin,
+      body: {
+        code,
+        name,
+        interestRate,
+        interestRatePeriod: 'MONTH',
+        termValue,
+        termUnit,
+        penaltyPolicy: { mode: 'NONE' },
+        ...(earlySettlementFeePercent === undefined ? {} : { earlySettlementFeePercent }),
+      },
+    });
+    if (res.status !== 201) throw new Error(`product ${code} failed ${res.status} ${errorMessage(res)}`);
+    createdProducts.push(res.json.product.id);
+    products.push(res.json.product);
+    return res.json.product;
+  };
 
   const newLoan = async ({ customerId, productCode, principal, disbursedAt, label }) => {
     const p = product(productCode);
@@ -145,7 +191,12 @@ export default async function suite(ctx) {
 
   const loanView = async (id) => (await api('GET', `/api/loans/${id}`)).json?.data?.loan ?? null;
   const agreementView = async (id) => (await api('GET', `/api/settlements/${id}`)).json?.data ?? null;
+  const feeQuote = async (loanId, token = tokens.admin) => (await api('GET', `/api/settlements/early-settlement-fee/${loanId}`, { token })).json?.data ?? null;
   const txLines = (id) => rows(conn, 'SELECT component, amount FROM financial_transaction_lines WHERE transactionId = ? ORDER BY component', [id]);
+  const txTypes = (loanId) =>
+    rows(conn, 'SELECT transactionType, status, COUNT(*) n FROM financial_transactions WHERE loanId = ? GROUP BY transactionType, status', [loanId]);
+  const txCount = async (loanId) => (await rows(conn, 'SELECT COUNT(*) n FROM financial_transactions WHERE loanId = ?', [loanId]))[0].n;
+  const agreementCount = async (loanId) => (await rows(conn, 'SELECT COUNT(*) n FROM settlement_agreements WHERE loanId = ?', [loanId]))[0].n;
 
   const levelToken = { CHECKER: tokens.checker1, HEAD: tokens.head, ADMIN: tokens.admin };
   const findStep = async (subjectId, token) => {
@@ -196,6 +247,17 @@ export default async function suite(ctx) {
     return { made, request, approved, txId, posted };
   };
 
+  /** settlement-payment draft approved but deliberately left unposted (the post-time ceiling needs two). */
+  const settleDraft = async (agreementId, body, { makerToken, approverToken } = {}) => {
+    const made = await api('POST', `/api/settlements/${agreementId}/settlement-payment`, { token: makerToken ?? tokens.op1, body });
+    if (made.status !== 201) return { made };
+    const request = made.json.data.request;
+    const approved = await api('POST', `/api/payment-requests/${request.id}/approve`, { token: approverToken ?? tokens.checker1, body: {} });
+    const txId = approved.json?.data?.transaction?.id;
+    if (txId) createdTx.push(txId);
+    return { made, request, approved, txId };
+  };
+
   /** A transaction already created in PENDING_APPROVAL (waiver from settle-shortfall) -> approve -> post. */
   const approveAndPost = async (txId, stopAfterLevel = 'ADMIN') => {
     const trail = await approveLevels(txId, stopAfterLevel);
@@ -241,13 +303,54 @@ export default async function suite(ctx) {
     return { exp, after, got };
   };
 
+  // Mail that a money event queued inside its own business transaction (transactional outbox), read
+  // back here to prove the settlement flows announce themselves. transport=log = nothing leaves the box.
+  const approverEmails = (
+    await rows(
+      conn,
+      "SELECT email FROM users WHERE role IN ('CHECKER','HEAD_APPROVER','ADMIN') AND isActive = 1 AND email IS NOT NULL AND email <> '' ORDER BY email",
+      [],
+    )
+  ).map((r) => r.email);
+  const borrowerEmail = async (loanId) =>
+    (await rows(conn, 'SELECT c.email FROM customers c JOIN loans l ON l.customerId = c.id WHERE l.id = ?', [loanId]))[0]?.email ?? null;
+  /** maker ผู้สร้างคำขอได้สำเนาเฉพาะเมลแจ้งผลตัดสิน (APPROVED/REJECTED) ไม่ใช่เมลแจ้งยื่น */
+  const makerEmail = async (username) =>
+    (await rows(conn, 'SELECT email FROM users WHERE username = ?', [username]))[0]?.email ?? null;
+  /** formatAmount() ให้ค่าแบบ "1,000,000 LAK" จึงเทียบเป็นตัวเลขล้วน */
+  const moneyOf = (value) => String(value ?? '').replace(/[^\d.]/g, '');
+  const reaches = (mail, audience) =>
+    audience.every((email) => mail.some((r) => String(r.recipientEmail).toLowerCase() === String(email).toLowerCase()));
+  // payload is sealed for every event type, so the fields open in JS — JSON_EXTRACT on that text is
+  // not valid JSON and answers NULL, which would compare nulls instead of the announced amounts.
+  const mailFor = (loanId, type, amount = null) =>
+    rows(
+      conn,
+      'SELECT recipientEmail, status, payload FROM notification_outbox WHERE loanId = ? AND type = ? ORDER BY createdAt',
+      [loanId, type],
+    )
+      .then((rs) =>
+        rs.map((row) => {
+          const payload = payloadOf(row);
+          return {
+            ...row,
+            requestNo: payload.requestNo ?? null,
+            amount: payload.amount ?? null,
+            remaining: payload.remaining ?? null,
+            components: payload.components ?? null,
+            creditBalance: payload.creditBalance ?? null,
+          };
+        }),
+      )
+      .then((rs) => (amount === null ? rs : rs.filter((r) => moneyOf(r.amount) === moneyOf(amount))));
+
   try {
     // ============================================================ fixtures
     const A1 = await newLoan({ customerId: C5, productCode: 'TST-NOPEN-ZERO', principal: 300000, disbursedAt: '2026-05-05T00:00:00.000Z', label: 'A1' });
     const A2 = await newLoan({ customerId: C6, productCode: 'TST-FLAT-M6', principal: 2000000, disbursedAt: '2026-03-05T00:00:00.000Z', label: 'A2' });
     const A3 = await newLoan({ customerId: C7, productCode: 'TST-FLAT-M12', principal: 500000, disbursedAt: '2026-06-05T00:00:00.000Z', label: 'A3' });
     const A4 = await newLoan({ customerId: C8, productCode: 'TST-FLAT-M12', principal: 20000000, disbursedAt: '2026-01-05T00:00:00.000Z', label: 'A4' });
-    const A5 = await newLoan({ customerId: C6, productCode: 'TST-DAY-RATE', principal: 1000000, disbursedAt: '2026-09-05T00:00:00.000Z', label: 'A5' });
+    const A5 = await newLoan({ customerId: C6, productCode: 'TST-DAY-RATE', principal: 1000000, disbursedAt: '2026-01-05T00:00:00.000Z', label: 'A5' });
 
     const outCents = (loan) => totalOf(states.get(loan.id).components);
 
@@ -591,18 +694,18 @@ export default async function suite(ctx) {
 
     const A3ag = await newAgreement(A3, 400000);
     const unpaidWaive = await api('POST', `/api/settlements/${A3ag.id}/waive-shortfall`, { token: tokens.op1, body: { reason: 'ยังไม่ได้จ่ายเลย' } });
-    check(CAT, 'ยังไม่ชำระเงินตามข้อตกลง: waive ได้แต่ "ยอดที่จ่ายจริง (0) ต่ำกว่า agreedAmount" = 422', {
+    check(CAT, 'ยังไม่ชำระเงินตามข้อตกลง: waive ได้แต่ "ยอดที่จ่ายจริง (0) ต่ำกว่ายอดที่ข้อตกลงเรียก (agreed + ค่าปรับ)" = 422', {
       input: 'waive right after approval, nothing posted',
-      expected: '422 "are below the agreed amount"',
+      expected: '422 "are below what the agreement asks for"',
       actual: `HTTP ${unpaidWaive.status} ${errorMessage(unpaidWaive)}`,
-      pass: unpaidWaive.status === 422 && errorMessage(unpaidWaive).includes('are below the agreed amount'),
+      pass: unpaidWaive.status === 422 && errorMessage(unpaidWaive).includes('are below what the agreement asks for'),
     });
     const A3part = await settlePay(A3ag.id, { cashAmount: 250000 });
     await verifyPosted(A3, A3part.txId, { type: 'SETTLEMENT_PAYMENT', amountCents: toCents(250000) }, 'settlement payment 250,000 (จ่ายไม่ครบ agreed)');
     const partWaive = await api('POST', `/api/settlements/${A3ag.id}/waive-shortfall`, { token: tokens.op1, body: { reason: 'จ่ายไม่ครบ' } });
     check(CAT, 'จ่ายไม่ครบตาม agreedAmount: waive ยังถูกปฏิเสธ พร้อมตัวเลข netPaid ที่ถูกต้อง', {
       input: 'netPaid 250,000 vs agreed 400,000',
-      expected: '422 "Settlement payments posted (250000) are below the agreed amount (400000)"',
+      expected: '422 "Settlement payments posted (250000) are below what the agreement asks for (400000: 400000 agreed plus 0 early-settlement fee)"',
       actual: `HTTP ${partWaive.status} ${errorMessage(partWaive)}`,
       pass: partWaive.status === 422 && errorMessage(partWaive).includes('250000') && errorMessage(partWaive).includes('400000'),
     });
@@ -638,6 +741,15 @@ export default async function suite(ctx) {
     });
     if (waivePosted.posted?.status === 200) {
       await verifyPosted(A3, A3waive.json.data.transaction.id, { type: 'WAIVER', components: shortfallNow }, 'waive shortfall of settlement');
+      const a3WaiveMail = await mailFor(A3.id, 'WAIVER_POSTED', toLak(totalOf(shortfallNow)));
+      const a3Audience = [await borrowerEmail(A3.id), ...approverEmails];
+      check(CAT, 'ยกยอดขาดตามข้อตกลงแล้วเกิดเมล WAIVER_POSTED ถึงผู้กู้ +ผู้มีอำนาจ', {
+        input: `notification_outbox type=WAIVER_POSTED ของ ${A3.loanNumber}, ยอดที่ยก = shortfall`,
+        expected: `${a3Audience.length} แถวครบทุกที่อยู่, components + remaining ไม่ใช่ค่าว่าง`,
+        actual: `${a3WaiveMail.length} แถว ${JSON.stringify(a3WaiveMail.map((r) => [r.recipientEmail, r.amount, r.components, r.remaining]))}`,
+        pass: a3WaiveMail.length === a3Audience.length && reaches(a3WaiveMail, a3Audience) && a3WaiveMail.every((r) => !!r.components && !!r.remaining),
+        note: 'ยอดขาดที่ waiver ให้คือเงินที่เจ้าหนี้สละสิทธิ์จริง ผู้มีอำนาจจึงต้องได้สำเนาทุกครั้งที่ข้อตกลงถูกปิดด้วยวิธีนี้',
+      });
     }
     const afterClose = await loanView(A3.id);
     check(CAT, 'หลัง settlement payment ครบ + waive ยอดขาด: สถานะ CLOSED และ outstanding 0.00', {
@@ -672,11 +784,11 @@ export default async function suite(ctx) {
     if (reversalPosted?.posted?.status === 200) {
       await verifyPosted(A1, reversal.json.data.transaction.id, { type: 'PAYMENT_REVERSAL', amountCents: toCents(100000), originalAllocation: A1originalAllocation }, 'reverse settlement payment 100,000');
       const blocked = await api('POST', `/api/settlements/${A1ag.id}/waive-shortfall`, { token: tokens.op1, body: { reason: 'หลัง reverse' } });
-      check(CAT, 'reverse settlement payment แล้ว: waive ถูกปฏิเสธเพราะ netPaid ต่ำกว่า agreedAmount', {
+      check(CAT, 'reverse settlement payment แล้ว: waive ถูกปฏิเสธเพราะ netPaid ต่ำกว่ายอดที่ข้อตกลงเรียก', {
         input: 'netPaid = 200,000 - 100,000 = 100,000 vs agreed 200,000',
-        expected: '422 "Settlement payments posted (100000) are below the agreed amount (200000)"',
+        expected: '422 "Settlement payments posted (100000) are below what the agreement asks for (200000: 200000 agreed plus 0 early-settlement fee)"',
         actual: `HTTP ${blocked.status} ${errorMessage(blocked)}`,
-        pass: blocked.status === 422 && errorMessage(blocked).includes('are below the agreed amount') && errorMessage(blocked).includes('100000') && errorMessage(blocked).includes('200000'),
+        pass: blocked.status === 422 && errorMessage(blocked).includes('are below what the agreement asks for') && errorMessage(blocked).includes('100000') && errorMessage(blocked).includes('200000'),
       });
       const topUp = await settlePay(A1ag.id, { cashAmount: 100000 });
       await verifyPosted(A1, topUp.txId, { type: 'SETTLEMENT_PAYMENT', amountCents: toCents(100000) }, 'settlement payment เพิ่ม 100,000 ให้ netPaid ครบ');
@@ -713,6 +825,28 @@ export default async function suite(ctx) {
         const pp = await postTx(ap.json.data.transaction.id);
         if (pp.status === 200) {
           await verifyPosted(A5, ap.json.data.transaction.id, { type: 'PAYMENT', amountCents: outCents(A5) }, 'ชำระเต็มยอดด้วยเส้นทางปกติ (ปิด loan)');
+          const a5Submitted = (await mailFor(A5.id, 'PAYMENT_REQUEST_SUBMITTED')).filter((r) => r.requestNo === req.requestNo);
+          const a5Approved = (await mailFor(A5.id, 'PAYMENT_REQUEST_APPROVED')).filter((r) => r.requestNo === req.requestNo);
+          const a5Audience = [await borrowerEmail(A5.id), ...approverEmails];
+          const a5Decided = [...new Set([...a5Audience, await makerEmail('test_op1')])];
+          check(CAT, 'ปิดบัญชีด้วยเส้นทางปกติ: เกิดเมลแจ้งยื่นคำขอ (SUBMITTED) พร้อมยอดที่ชำระจริง', {
+            input: `notification_outbox type=PAYMENT_REQUEST_SUBMITTED ของ ${A5.loanNumber} requestNo ${req.requestNo}`,
+            expected: `${a5Audience.length} แถวถึงผู้กู้ +ผู้มีอำนาจ, amount = ${toLak(outCents(A5))} LAK`,
+            actual: `${a5Submitted.length} แถว ${JSON.stringify(a5Submitted.map((r) => [r.recipientEmail, r.amount]))}`,
+            pass:
+              a5Submitted.length === a5Audience.length &&
+              reaches(a5Submitted, a5Audience) &&
+              a5Submitted.every((r) => moneyOf(r.amount) === moneyOf(toLak(outCents(A5)))),
+          });
+          check(CAT, 'อนุมัติคำขอแล้วเกิดเมล PAYMENT_REQUEST_APPROVED ยอดตรงกับ transaction ที่ระบบสร้าง', {
+            input: `notification_outbox type=PAYMENT_REQUEST_APPROVED ของ ${A5.loanNumber}`,
+            expected: `${a5Decided.length} แถว (ผู้กู้ +ผู้มีอำนาจ +maker), amount เดียวกับ SUBMITTED, remaining ไม่ใช่ค่าว่าง`,
+            actual: `${a5Approved.length} แถว ${JSON.stringify(a5Approved.map((r) => [r.recipientEmail, r.amount, r.remaining]))}`,
+            pass:
+              a5Approved.length === a5Decided.length &&
+              reaches(a5Approved, a5Decided) &&
+              a5Approved.every((r) => moneyOf(r.amount) === moneyOf(toLak(outCents(A5))) && !!r.remaining),
+          });
           const lateSettle = await api('POST', `/api/settlements/${A5ag.id}/settlement-payment`, { token: tokens.op1, body: { cashAmount: 1000 } });
           check(CAT, 'loan ถูกปิดด้วยรายการอื่นไปแล้ว: settlement-payment ถูกปฏิเสธตามสถานะ loan', {
             input: 'settlement-payment on a CLOSED loan',
@@ -772,6 +906,18 @@ export default async function suite(ctx) {
             creditLedger.reduce((a, r) => a + cent(r.amount), 0) === toCents(1000000) &&
             sameMoney(creditRow?.balance ?? -1, 1000000),
         });
+        const a4CreditMail = await mailFor(A4.id, 'CREDIT_DEPOSITED', 1000000);
+        const a4Borrower = await borrowerEmail(A4.id);
+        check(CAT, 'ส่วนเกิน 1,000,000 ที่กลายเป็นเครดิตเกิดเมล CREDIT_DEPOSITED บอกยอดคงเหลือในบัญชีเครดิต', {
+          input: `notification_outbox type=CREDIT_DEPOSITED ของ ${A4.loanNumber}, amount 1,000,000`,
+          expected: '>= 1 แถวถึงเฉพาะผู้กู้, creditBalance ไม่ใช่ค่าว่าง',
+          actual: `${a4CreditMail.length} แถว ${JSON.stringify(a4CreditMail.map((r) => [r.recipientEmail, r.amount, r.creditBalance]))}`,
+          pass:
+            a4CreditMail.length >= 1 &&
+            a4CreditMail.every((r) => String(r.recipientEmail).toLowerCase() === String(a4Borrower).toLowerCase()) &&
+            a4CreditMail.every((r) => !!r.creditBalance),
+          note: 'เงินก้อนนี้ยังไม่ได้ตัดหนี้ (หนี้ปิดไปแล้ว) จึงเป็นเมลเติมเครดิต ไม่ใช่ใบเสร็จ และไม่มีสำเนาถึงผู้มีอำนาจ',
+        });
         const afterA4 = await loanView(A4.id);
         check(CAT, 'หนี้ปิดพอดีเมื่อมี agreement + waiver + payment ครบ: A4 CLOSED และยอดคงค้าง 0 (credit ไม่ลดหนี้ซ้ำ)', {
           input: A4.loanNumber,
@@ -780,6 +926,333 @@ export default async function suite(ctx) {
           pass: afterA4?.status === 'CLOSED' && sameMoney(afterA4?.outstanding?.total, 0),
         });
       }
+    }
+
+    // ============================================================ E2. early-settlement fee
+    // Closing a loan before its last instalment falls due costs a fee: the percent lives on the
+    // product, is frozen onto the loan at disbursement, and is billed as an ordinary PENALTY
+    // transaction that must be posted before the payoff — otherwise the payment would overpay into
+    // credit and the shortfall waiver would hand the fee straight back.
+    const FEE_PCT = 2.5;
+    const feeProduct = await newProduct({
+      code: 'TST-S08-FEE',
+      name: 'Suite08 early settlement fee',
+      interestRate: 1,
+      termValue: 6,
+      termUnit: 'MONTH',
+      earlySettlementFeePercent: FEE_PCT,
+    });
+    const F1 = await newLoan({ customerId: C5, productCode: feeProduct.code, principal: 1000000, disbursedAt: '2026-09-05T00:00:00.000Z', label: 'F1' });
+    const F2 = await newLoan({ customerId: C6, productCode: feeProduct.code, principal: 500000, disbursedAt: '2026-01-05T00:00:00.000Z', label: 'F2' });
+    const F3 = await newLoan({ customerId: C7, productCode: 'TST-FLAT-M12', principal: 400000, disbursedAt: '2026-09-05T00:00:00.000Z', label: 'F3' });
+
+    const feeProductRow = (await rows(conn, 'SELECT earlySettlementFeePercent FROM loan_products WHERE id = ?', [feeProduct.id]))[0];
+    check(CAT, 'ผลิตภัณฑ์ตั้ง earlySettlementFeePercent ได้ และค่าที่เก็บใน DB เท่ากับที่ส่ง', {
+      input: `POST /api/loan-products code=${feeProduct.code} earlySettlementFeePercent=${FEE_PCT}`,
+      expected: `${FEE_PCT}`,
+      actual: `api ${feeProduct.earlySettlementFeePercent} / db ${feeProductRow?.earlySettlementFeePercent}`,
+      pass: Number(feeProduct.earlySettlementFeePercent) === FEE_PCT && Number(feeProductRow?.earlySettlementFeePercent) === FEE_PCT,
+    });
+    const productAudit = (
+      await rows(conn, "SELECT reason FROM audit_logs WHERE action = 'LOAN_PRODUCT_CREATED' AND reason LIKE ? ORDER BY createdAt DESC LIMIT 1", [`%${feeProduct.code}%`])
+    )[0]?.reason ?? '';
+    check(CAT, 'audit ของการสร้างผลิตภัณฑ์ระบุค่าปรับปิดก่อนกำหนด ทำให้อ่าน trail ได้โดยไม่ต้อง lookup', {
+      input: 'audit_logs LOAN_PRODUCT_CREATED ของ TST-S08-FEE',
+      expected: 'reason contains "early-settlement fee 2.5%"',
+      actual: String(productAudit).slice(0, 200),
+      pass: /early-settlement fee 2\.5(\.0+)?%/.test(String(productAudit)),
+    });
+    for (const bad of [-1, 101]) {
+      statusCheck(CAT, `earlySettlementFeePercent = ${bad}: 400 (zod 0..100)`, await api('POST', '/api/loan-products', { token: tokens.admin, body: { code: `TST-S08-BAD${bad}`, name: 'bad fee', interestRate: 1, termValue: 6, termUnit: 'MONTH', earlySettlementFeePercent: bad } }), 400, {
+        input: `earlySettlementFeePercent=${bad}`,
+        messageIncludes: 'Validation failed',
+      });
+    }
+
+    const f1SnapshotRow = (await rows(conn, 'SELECT earlySettlementFeePercent FROM loans WHERE id = ?', [F1.id]))[0];
+    check(CAT, 'loan แช่แข็งเปอร์เซ็นต์ค่าปรับจากผลิตภัณฑ์ไว้ตอนปล่อยกู้', {
+      input: `POST /api/loans บน ${feeProduct.code}`,
+      expected: `${FEE_PCT} ทั้ง API และ loans.earlySettlementFeePercent`,
+      actual: `api ${(await loanView(F1.id))?.earlySettlementFeePercent} / db ${f1SnapshotRow?.earlySettlementFeePercent}`,
+      pass:
+        Number((await loanView(F1.id))?.earlySettlementFeePercent) === FEE_PCT &&
+        Number(f1SnapshotRow?.earlySettlementFeePercent) === FEE_PCT,
+    });
+    const repriced = await api('PATCH', `/api/loan-products/${feeProduct.id}`, { token: tokens.admin, body: { earlySettlementFeePercent: 9 } });
+    statusCheck(CAT, 'ADMIN แก้เปอร์เซ็นต์ค่าปรับของผลิตภัณฑ์เป็น 9%: 200', repriced, 200, { input: 'earlySettlementFeePercent=9' });
+    const quoteAfterReprice = await feeQuote(F1.id);
+    check(CAT, 'ผลิตภัณฑ์ถูกตั้งใหม่เป็น 9% แล้ว แต่กู้ที่ปล่อยไว้ยังคิด 2.5% ตาม snapshot (ห้ามไปเพิ่มหนี้สัญญาที่เซ็นแล้ว)', {
+      input: `GET /api/settlements/early-settlement-fee/{loanId} ของ ${F1.loanNumber} หลัง PATCH ผลิตภัณฑ์`,
+      expected: `feePercent ${FEE_PCT} ไม่ใช่ 9`,
+      actual: `feePercent ${quoteAfterReprice?.feePercent}, fee ${fmt(cent(quoteAfterReprice?.fee ?? -1))}`,
+      pass: Number(quoteAfterReprice?.feePercent) === FEE_PCT,
+    });
+
+    const feeExp = earlySettlementFeeCents({ principalOutstandingCents: toCents(F1.principal), feePercent: FEE_PCT, settledBeforeTermEnd: true });
+    const quoteF1 = await feeQuote(F1.id);
+    const debtF1 = totalOf(states.get(F1.id).components);
+    check(CAT, 'GET /settlements/early-settlement-fee กู้ที่ยังไม่ถึงกำหนด: คำนวณ % ของเงินต้นคงเหลือตรง oracle', {
+      input: `เงินต้นคงเหลือ ${toLak(toCents(F1.principal))} @ ${FEE_PCT}%, งวดล่าสุดยังมาไม่ถึง`,
+      expected: `fee ${fmt(feeExp)}, outstanding ${fmt(debtF1)}, totalDue ${fmt(debtF1 + feeExp)}, settledBeforeTermEnd true, nextPendingPeriod มีงวด`,
+      actual: `fee ${fmt(cent(quoteF1?.fee ?? -1))}, outstanding ${fmt(cent(quoteF1?.outstanding ?? -1))}, totalDue ${fmt(cent(quoteF1?.totalDue ?? -1))}, settledBeforeTermEnd ${quoteF1?.settledBeforeTermEnd}, nextPending ${quoteF1?.nextPendingPeriod?.index ?? 'null'}`,
+      pass:
+        cent(quoteF1?.fee ?? -1) === feeExp &&
+        cent(quoteF1?.outstanding ?? -1) === debtF1 &&
+        cent(quoteF1?.totalDue ?? -1) === debtF1 + feeExp &&
+        quoteF1?.settledBeforeTermEnd === true &&
+        Number(quoteF1?.principalOutstanding ?? -1) === Number(F1.principal) &&
+        quoteF1?.nextPendingPeriod?.index > 1,
+    });
+    const quoteTxBefore = await txCount(F3.id);
+    const quoteAgBefore = await agreementCount(F3.id);
+    await feeQuote(F3.id);
+    await feeQuote(F3.id);
+    check(CAT, 'endpoint คิดค่าปรับเป็น read-only: เรียกซ้ำกี่ครั้งก็ไม่มี agreement หรือ transaction ใหม่', {
+      input: 'GET /api/settlements/early-settlement-fee 2 ครั้งบน F3',
+      expected: `transactions ${quoteTxBefore}, agreements ${quoteAgBefore}`,
+      actual: `transactions ${await txCount(F3.id)}, agreements ${await agreementCount(F3.id)}`,
+      pass: (await txCount(F3.id)) === quoteTxBefore && (await agreementCount(F3.id)) === quoteAgBefore,
+    });
+    const quoteF2 = await feeQuote(F2.id);
+    check(CAT, 'กู้ที่งวดครบทั้งสัญญาแล้ว (F2): ปิดบัญชีไม่คิดค่าปรับ เพราะการปิดตอนสิ้นสัญญาไม่ใช่การขอปิดก่อนกำหนด', {
+      input: `GET early-settlement-fee ของ ${F2.loanNumber} (ปล่อย 2026-01-05, 6 เดือน)`,
+      expected: `settledBeforeTermEnd false, fee 0.00, totalDue = outstanding ${fmt(totalOf(states.get(F2.id).components))}`,
+      actual: `settledBeforeTermEnd ${quoteF2?.settledBeforeTermEnd}, fee ${fmt(cent(quoteF2?.fee ?? -1))}, totalDue ${fmt(cent(quoteF2?.totalDue ?? -1))}`,
+      pass:
+        quoteF2?.settledBeforeTermEnd === false &&
+        cent(quoteF2?.fee ?? -1) === 0 &&
+        cent(quoteF2?.totalDue ?? -1) === totalOf(states.get(F2.id).components),
+    });
+    const quoteF3 = await feeQuote(F3.id);
+    check(CAT, 'ผลิตภัณฑ์ที่ไม่ได้ตั้งค่าปรับ (seed เดิม = 0): ปิดก่อนกำหนดยังไม่มีค่าปรับ ระบบไม่เก็บเพราะคอลัมน์ใหม่', {
+      input: `GET early-settlement-fee ของ ${F3.loanNumber} (TST-FLAT-M12, งวดยังไม่ครบ)`,
+      expected: 'feePercent 0, settledBeforeTermEnd true, fee 0.00',
+      actual: `feePercent ${quoteF3?.feePercent}, settledBeforeTermEnd ${quoteF3?.settledBeforeTermEnd}, fee ${fmt(cent(quoteF3?.fee ?? -1))}`,
+      pass: Number(quoteF3?.feePercent) === 0 && quoteF3?.settledBeforeTermEnd === true && cent(quoteF3?.fee ?? -1) === 0,
+    });
+    const viewerQuote = await api('GET', `/api/settlements/early-settlement-fee/${F1.id}`, { token: tokens.viewer });
+    const anonQuote = await api('GET', `/api/settlements/early-settlement-fee/${F1.id}`, { token: null });
+    check(CAT, 'ทุก role ที่มี token ขอยอดปิดบัญชีพบได้ (read-only ไม่มี role guard) ส่วนผู้ไม่ login ถูกกัน', {
+      input: 'GET early-settlement-fee as VIEWER and as anonymous',
+      expected: { viewer: 200, anon: 401 },
+      actual: { viewer: viewerQuote.status, anon: anonQuote.status },
+      pass: viewerQuote.status === 200 && anonQuote.status === 401,
+    });
+    statusCheck(CAT, 'early-settlement-fee ของ loan ที่ไม่มีอยู่: 404 Loan not found', await api('GET', '/api/settlements/early-settlement-fee/00000000-9999-4000-8000-000000000096', { token: tokens.viewer }), 404, {
+      input: 'unknown loan uuid',
+      messageIncludes: 'Loan not found',
+    });
+
+    const F1ag = await newAgreement(F1, toLak(debtF1), { reason: 'ปิดบัญชีทั้งก้อนก่อนครบสัญญา' });
+    check(CAT, `ข้อตกลงปิดก่อนกำหนดเก็บค่าปรับ ${fmt(feeExp)} ไว้กับสัญญา พร้อมยอดที่ต้องชำระรวม`, {
+      input: `POST /api/settlements agreedAmount ${toLak(debtF1)} บน ${F1.loanNumber}`,
+      expected: { status: 'APPROVED', earlySettlementFee: fmt(feeExp), agreedAmount: fmt(debtF1) },
+      actual: {
+        status: F1ag.agreement?.status,
+        earlySettlementFee: String(F1ag.agreement?.earlySettlementFee),
+        agreedAmount: String(F1ag.agreement?.agreedAmount),
+      },
+      pass:
+        F1ag.approved === true &&
+        sameMoney(F1ag.agreement?.earlySettlementFee, toLak(feeExp)) &&
+        sameMoney(F1ag.agreement?.agreedAmount, toLak(debtF1)),
+    });
+    const F1agAudit = (
+      await rows(conn, "SELECT reason FROM audit_logs WHERE action = 'SETTLEMENT_AGREEMENT_CREATED' AND loanId = ? ORDER BY createdAt", [F1.id])
+    )[0]?.reason ?? '';
+    check(CAT, 'audit ของข้อตกลงบอกที่มาของค่าปรับ (เปอร์เซ็นต์ + เงินต้นที่คิด) ให้ผู้ตรวจสอบคำนวณเองได้', {
+      input: 'audit_logs SETTLEMENT_AGREEMENT_CREATED ของ F1',
+      expected: `early-settlement fee ${fmt(feeExp)} + "2.5% of principal outstanding 1000000"`,
+      actual: String(F1agAudit).slice(0, 240),
+      pass: /early-settlement fee 25000(\.00)?/.test(String(F1agAudit)) && /2\.5% of principal outstanding 1000000(\.00)?/.test(String(F1agAudit)),
+    });
+
+    const feeTxRows = await rows(conn, "SELECT id, status, amount, reason, settlementAgreementId FROM financial_transactions WHERE loanId = ? AND transactionType = 'PENALTY'", [F1.id]);
+    const feeTxId = feeTxRows[0]?.id;
+    if (feeTxId) createdTx.push(feeTxId);
+    check(CAT, 'ค่าปรับปิดก่อนกำหนดกลายเป็นรายการ PENALTY ที่ผูกกับ agreement และยังไม่โพสต์ (เข้า maker-checker เหมือนค่าปรับทั่วไป)', {
+      input: 'financial_transactions ของ F1 ชนิด PENALTY',
+      expected: { rows: 1, status: 'PENDING_APPROVAL', amount: fmt(feeExp), reasonStart: `Early-settlement fee ${FEE_PCT}% of the principal still owed` },
+      actual: {
+        rows: feeTxRows.length,
+        status: feeTxRows[0]?.status,
+        amount: fmt(cent(feeTxRows[0]?.amount ?? -1)),
+        reasonStart: String(feeTxRows[0]?.reason).slice(0, 60),
+        linked: feeTxRows[0]?.settlementAgreementId === F1ag.id,
+      },
+      pass:
+        feeTxRows.length === 1 &&
+        feeTxRows[0].status === 'PENDING_APPROVAL' &&
+        cent(feeTxRows[0].amount) === feeExp &&
+        feeTxRows[0].settlementAgreementId === F1ag.id &&
+        String(feeTxRows[0].reason).startsWith(`Early-settlement fee ${FEE_PCT}% of the principal still owed`),
+    });
+    const reqBefore = (await rows(conn, 'SELECT COUNT(*) n FROM payment_requests WHERE loanId = ?', [F1.id]))[0].n;
+    const earlyPay = await api('POST', `/api/settlements/${F1ag.id}/settlement-payment`, { token: tokens.op1, body: { cashAmount: toLak(debtF1) } });
+    check(CAT, 'ห้ามชำระเงินปิดบัญชีก่อนโพสต์ค่าปรับ: 422 ระบุว่ายอดที่โพสต์แล้วคือ 0', {
+      input: `settlement-payment ${toLak(debtF1)} ตอนที่ fee ยัง PENDING_APPROVAL`,
+      expected: '422 "Early-settlement fee of 25000 must be approved and posted before the settlement payment"',
+      actual: `HTTP ${earlyPay.status} ${errorMessage(earlyPay)}`,
+      pass:
+        earlyPay.status === 422 &&
+        errorMessage(earlyPay).includes('must be approved and posted before the settlement payment') &&
+        errorMessage(earlyPay).includes('0 posted so far') &&
+        (await rows(conn, 'SELECT COUNT(*) n FROM payment_requests WHERE loanId = ?', [F1.id]))[0].n === reqBefore,
+    });
+
+    const feeFlow = await approveAndPost(feeTxId);
+    statusCheck(CAT, 'ค่าปรับผ่าน approval ของ PENALTY แล้วโพสต์ได้ 200 (เส้นทางเดียวกับค่าปรับปกติ)', feeFlow.posted, 200, {
+      input: 'approve levels + POST /transactions/:feeId/post',
+    });
+    await verifyPosted(F1, feeTxId, { type: 'PENALTY', amountCents: feeExp }, 'billed early-settlement fee');
+    const feeMail = await mailFor(F1.id, 'PENALTY_POSTED', toLak(feeExp));
+    const f1Audience = [await borrowerEmail(F1.id), ...approverEmails];
+    check(CAT, 'ค่าปรับปิดก่อนครบสัญญาที่โพสต์แล้วเกิดเมล PENALTY_POSTED (ชนิดเดียวกับค่าปรับปกติ)', {
+      input: `notification_outbox type=PENALTY_POSTED ของ ${F1.loanNumber}, amount ${toLak(feeExp)}`,
+      expected: `${f1Audience.length} แถวถึงผู้กู้ +ผู้มีอำนาจครบ, reason + remaining ไม่ใช่ค่าว่าง`,
+      actual: `${feeMail.length} แถว ${JSON.stringify(feeMail.map((r) => [r.recipientEmail, r.amount, r.reason, r.remaining]))}`,
+      pass: feeMail.length === f1Audience.length && reaches(feeMail, f1Audience) && feeMail.every((r) => !!r.reason && !!r.remaining),
+      note: 'fee ถูกโพสต์ผ่าน postTransaction ทางเดียวกับค่าปรับที่เรียกเก็บปกติ จึงได้เมลชนิดเดียวกันโดยไม่มี code แยก',
+    });
+    const quoteAfterFee = await feeQuote(F1.id);
+    check(CAT, 'หลังโพสต์ค่าปรับ: เงินต้นคงเหลือยังไม่เปลี่ยน และ quotation ยังให้ตัวเลขเดิม (ค่าปรับเข้า.bucket PENALTY ไม่ใช่ต้น)', {
+      input: `GET early-settlement-fee ของ ${F1.loanNumber} หลังโพสต์ fee`,
+      expected: `principalOutstanding ${toLak(toCents(F1.principal))}, fee ${fmt(feeExp)}, outstanding ${fmt(debtF1 + feeExp)}`,
+      actual: `principalOutstanding ${quoteAfterFee?.principalOutstanding}, fee ${fmt(cent(quoteAfterFee?.fee ?? -1))}, outstanding ${fmt(cent(quoteAfterFee?.outstanding ?? -1))}`,
+      pass:
+        Number(quoteAfterFee?.principalOutstanding) === Number(F1.principal) &&
+        cent(quoteAfterFee?.fee ?? -1) === feeExp &&
+        cent(quoteAfterFee?.outstanding ?? -1) === debtF1 + feeExp,
+    });
+
+    const totalDueCents = debtF1 + feeExp;
+    const aboveCap = await api('POST', `/api/settlements/${F1ag.id}/settlement-payment`, { token: tokens.op1, body: { cashAmount: toLak(totalDueCents) + 0.01 } });
+    check(CAT, 'ชำระเงินปิดบัญชีเกิน agreedAmount + ค่าปรับ: 422 และข้อความระบุเพดานทั้งสองส่วน', {
+      input: `cashAmount ${toLak(totalDueCents) + 0.01} เทียบ totalDue ${toLak(totalDueCents)}`,
+      expected: '422 "exceeds the agreed amount ... plus its early-settlement fee"',
+      actual: `HTTP ${aboveCap.status} ${errorMessage(aboveCap)}`,
+      pass:
+        aboveCap.status === 422 &&
+        errorMessage(aboveCap).includes('exceeds the agreed amount') &&
+        errorMessage(aboveCap).includes('plus its early-settlement fee'),
+    });
+
+    // Two drafts can both pass the create-time ceiling because that check compares one payment at a
+    // time. The post-time ceiling (F-CONC-5) is what keeps the agreement paid once, and its ceiling
+    // now includes the fee.
+    const beforeFeeDrafts = { ...states.get(F1.id).components };
+    const draftFull = await settleDraft(F1ag.id, { cashAmount: toLak(totalDueCents) });
+    const draftPart = await settleDraft(F1ag.id, { cashAmount: toLak(feeExp) });
+    const draftStatuses = await rows(conn, 'SELECT id, status FROM financial_transactions WHERE id IN (?)', [[draftFull.txId, draftPart.txId]]);
+    const draftLoan = outstandingOf(await loanView(F1.id));
+    check(CAT, 'create-time check เทียบค่าปิดบัญชีทีละฉบับ: อนุมัติค้างไว้สองฉบับพร้อมกันได้ (ยังไม่ขยับเงิน)', {
+      input: `draft ${toLak(totalDueCents)} + draft ${toLak(feeExp)} บน agreement เดียวกัน`,
+      expected: 'ทั้งสอง 201 + อนุมัติ 200 และ transaction อยู่สถานะ APPROVED (ยังไม่มี POSTED)',
+      actual: `create ${draftFull.made.status}/${draftPart.made.status}, approve ${draftFull.approved?.status}/${draftPart.approved?.status}, db ${draftStatuses.map((r) => `${r.id.slice(0, 8)}:${r.status}`).join(' ')}`,
+      pass:
+        draftFull.made.status === 201 &&
+        draftPart.made.status === 201 &&
+        draftFull.approved?.status === 200 &&
+        draftPart.approved?.status === 200 &&
+        draftStatuses.length === 2 &&
+        draftStatuses.every((r) => r.status === 'APPROVED') &&
+        COMPS.every((c) => draftLoan[c] === beforeFeeDrafts[c]),
+    });
+
+    const postPart = await postTx(draftPart.txId);
+    statusCheck(CAT, 'โพสต์ฉบับย่อยที่เท่าค่าปรับก่อน: 200', postPart, 200, { input: `POST /transactions/${draftPart.txId}/post` });
+    await verifyPosted(F1, draftPart.txId, { type: 'SETTLEMENT_PAYMENT', amountCents: feeExp }, 'settlement payment ส่วนค่าปรับ 25,000');
+    const partAllocation = Object.fromEntries(COMPS.map((c) => [c, cent(postPart.json?.data?.allocation?.[c] ?? -1)]));
+    check(CAT, 'เงินก้อนแรกใช้ค่าปรับก่อนเงินต้น: allocation เรียง PENALTY -> PAST_INTEREST -> PAST_PRINCIPAL', {
+      input: `จ่าย ${toLak(feeExp)} ตอนที่ PENALTY ${fmt(feeExp)} จากค่าปรับอยู่ในยอดคงค้าง`,
+      expected: asLak(allocateComponents(feeExp, beforeFeeDrafts).allocation),
+      actual: asLak(partAllocation),
+      pass: COMPS.every((c) => partAllocation[c] === allocateComponents(feeExp, beforeFeeDrafts).allocation[c]) && partAllocation.PENALTY === feeExp,
+    });
+
+    const postFull = await postTx(draftFull.txId);
+    check(CAT, 'เพดานตอนโพสต์นับค่าปรับรวมด้วย: ฉบับใหญ่ที่อนุมัติค้างไว้ถูกปฏิเสธเมื่อมีเงินถูกโพสต์ไปแล้ว', {
+      input: `POST /transactions/${draftFull.txId.slice(0, 8)}/post หลังโพสต์ ${toLak(feeExp)}`,
+      expected: `422 "already paid for ${toLak(feeExp)} of ${toLak(totalDueCents)} (${toLak(debtF1)} agreed plus ${toLak(feeExp)} early-settlement fee)"`,
+      actual: `HTTP ${postFull.status} ${errorMessage(postFull)}`,
+      pass:
+        postFull.status === 422 &&
+        errorMessage(postFull).includes('already paid for') &&
+        errorMessage(postFull).includes(`${toLak(feeExp)} of ${toLak(totalDueCents)}`) &&
+        errorMessage(postFull).includes('early-settlement fee'),
+    });
+    const stalledOutstanding = outstandingOf(await loanView(F1.id));
+    check(CAT, 'การโพสต์ที่ถูกปฏิเสธไม่ขยับเงิน: ยอดคงค้างยังเท่า oracle (ไม่มี partial write)', {
+      input: 'GET /api/loans/F1 หลังโพสต์ฉบับใหญ่ล้มเหลว',
+      expected: asLak(states.get(F1.id).components),
+      actual: asLak(stalledOutstanding),
+      pass: COMPS.every((c) => stalledOutstanding[c] === states.get(F1.id).components[c]),
+    });
+
+    const lateWaive = await api('POST', `/api/settlements/${F1ag.id}/waive-shortfall`, { token: tokens.op1, body: { reason: 'จ่ายแค่ค่าปรับ ยังไม่ครบ agreedAmount' } });
+    check(CAT, 'ยกยอดขาดไม่ได้ถ้ายังจ่ายไม่ครบ agreedAmount + ค่าปรับ: 422 ระบุยอดที่ต้องชำระรวม', {
+      input: `netPaid ${toLak(feeExp)} เทียบ totalDue ${toLak(totalDueCents)}`,
+      expected: `422 "are below what the agreement asks for (${toLak(totalDueCents)}: ${toLak(debtF1)} agreed plus ${toLak(feeExp)} early-settlement fee)"`,
+      actual: `HTTP ${lateWaive.status} ${errorMessage(lateWaive)}`,
+      pass:
+        lateWaive.status === 422 &&
+        errorMessage(lateWaive).includes('are below what the agreement asks for') &&
+        errorMessage(lateWaive).includes(`${toLak(totalDueCents)}: ${toLak(debtF1)} agreed plus ${toLak(feeExp)} early-settlement fee`),
+    });
+
+    const beforeClose = { ...states.get(F1.id).components };
+    const expClose = allocateComponents(debtF1, beforeClose);
+    const F1payClose = await settlePay(F1ag.id, { cashAmount: toLak(debtF1) });
+    await verifyPosted(F1, F1payClose.txId, { type: 'SETTLEMENT_PAYMENT', amountCents: debtF1 }, `settlement payment ส่วนที่เหลือ ${fmt(debtF1)} ปิดบัญชี`);
+    const closeAllocation = Object.fromEntries(COMPS.map((c) => [c, cent(F1payClose.posted?.json?.data?.allocation?.[c] ?? -1)]));
+    check(CAT, 'ฉบับสุดท้ายใช้ดอกเบี้ยแล้วจึงเงินต้น (ค่าปรับถูกใช้ไปแล้ว) และไม่มีส่วนเกินไปเป็น credit', {
+      input: `จ่าย ${toLak(debtF1)} บน ${asLak(beforeClose)}`,
+      expected: `${asLak(expClose.allocation)} overpayment 0.00`,
+      actual: `${asLak(closeAllocation)} excess ${String(F1payClose.posted?.json?.data?.excess)}`,
+      pass: COMPS.every((c) => closeAllocation[c] === expClose.allocation[c]) && expClose.overpaymentCents === 0,
+    });
+    const afterF1 = await loanView(F1.id);
+    check(CAT, 'จ่ายครบ agreedAmount + ค่าปรับแล้ว: F1 ปิดบัญชี (CLOSED) ยอดคงค้าง 0 โดยไม่ต้องยกยอดขาด', {
+      input: F1.loanNumber,
+      expected: { status: 'CLOSED', outstanding: '0.00' },
+      actual: { status: afterF1?.status, outstanding: String(afterF1?.outstanding?.total) },
+      pass: afterF1?.status === 'CLOSED' && sameMoney(afterF1?.outstanding?.total, 0),
+    });
+    const waiveAfterClose = await api('POST', `/api/settlements/${F1ag.id}/waive-shortfall`, { token: tokens.op1, body: { reason: 'ไม่มียอดขาดเหลือ' } });
+    statusCheck(CAT, 'ปิดครบทั้งก้อนแล้ว: waive-shortfall ให้ 422 เพราะไม่มียอดขาด', waiveAfterClose, 422, {
+      input: 'waive-shortfall หลังจ่ายครบ totalDue',
+      messageIncludes: 'no outstanding shortfall to waive',
+    });
+    const f1Credit = await rows(conn, 'SELECT COUNT(*) n FROM credit_ledger WHERE customerId = ?', [C5]);
+    check(CAT, 'ค่าปรับปิดก่อนกำหนดไม่กลายเป็น customer credit (ไม่มี overpayment เหลือจากเส้นทางนี้)', {
+      input: 'credit_ledger ของ C5 หลังปิด F1 ครบทั้งก้อน',
+      expected: '0 แถว',
+      actual: `${f1Credit[0]?.n} แถว`,
+      pass: Number(f1Credit[0]?.n ?? -1) === 0,
+    });
+
+    // A loan whose term has fully run pays no fee, so its agreement must not carry a pending charge.
+    const F2debt = totalOf(states.get(F2.id).components);
+    const F2ag = await newAgreement(F2, toLak(F2debt), { reason: 'ปิดบัญชีเมื่อสัญญาครบกำหนดแล้ว' });
+    check(CAT, 'ข้อตกลงบนกู้ที่งวดครบทั้งสัญญา: earlySettlementFee = 0.00', {
+      input: `POST /api/settlements บน ${F2.loanNumber}`,
+      expected: { earlySettlementFee: '0.00', agreedAmount: fmt(F2debt) },
+      actual: { earlySettlementFee: String(F2ag.agreement?.earlySettlementFee), agreedAmount: String(F2ag.agreement?.agreedAmount) },
+      pass: sameMoney(F2ag.agreement?.earlySettlementFee, 0) && sameMoney(F2ag.agreement?.agreedAmount, toLak(F2debt)),
+    });
+    const f2Types = await txTypes(F2.id);
+    check(CAT, 'ข้อตกลงแบบไม่มีค่าปรับไม่สร้าง transaction PENALTY ใด ๆ (เอกสารล้วน ๆ ตามกฎเดิม)', {
+      input: `financial_transactions ของ ${F2.loanNumber}`,
+      expected: 'DISBURSEMENT=1 เท่านั้น',
+      actual: f2Types.map((r) => `${r.transactionType}:${r.status}=${r.n}`).join(' '),
+      pass: f2Types.length === 1 && f2Types[0].transactionType === 'DISBURSEMENT' && f2Types[0].status === 'POSTED',
+    });
+    const F2pay = await settlePay(F2ag.id, { cashAmount: toLak(F2debt) });
+    statusCheck(CAT, 'ปิดบัญชีเมื่อไม่มียอดค่าปรับ: รับ settlement-payment ได้ทันทีโดยไม่ต้องรอโพสต์อะไรเพิ่ม', F2pay.made, 201, {
+      input: `settlement-payment ${toLak(F2debt)} บน agreement ที่ earlySettlementFee=0`,
+    });
+    if (F2pay.posted?.status === 200) {
+      await verifyPosted(F2, F2pay.txId, { type: 'SETTLEMENT_PAYMENT', amountCents: F2debt }, 'settlement payment ปิด F2 (ไม่มีค่าปรับ)');
     }
 
     // ============================================================ F. agreements are immutable documents

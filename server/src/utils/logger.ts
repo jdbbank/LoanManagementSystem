@@ -90,11 +90,33 @@ function renderMessage(message: unknown): string {
   }
 }
 
+/**
+ * ชั้นป้องกันสุดท้ายก่อนถึงดิสก์: ค่าลับ (OTP ใน subject, token ใน URL reset link)
+ * ต้องไม่ถูกเขียนลงไฟล์ log แม้ผู้เรียกในอนาคตเผลอส่งข้อความดิบมา
+ * การ redaction หลักยังอยู่ที่ notification-dispatcher (SECRET_EVENT_TYPES)
+ */
+const SECRET_PATTERNS: ReadonlyArray<{ pattern: RegExp; replace: string }> = [
+  { pattern: /(ເລກຢືນຢັນ\s*)\d{6}/g, replace: '$1<redacted>' },
+  { pattern: /((?:verification|one[-\s]time) code\D{0,4})\d{6}/gi, replace: '$1<redacted>' },
+  { pattern: /(reset-password\?token=)[A-Za-z0-9_-]{8,}/g, replace: '$1<redacted>' },
+];
+
+export function redactSecretsFrom(message: string): string {
+  return SECRET_PATTERNS.reduce((text, { pattern, replace }) => text.replace(pattern, replace), message);
+}
+
+const redactSecrets = winston.format((info) =>
+  typeof info.message === 'string' ? { ...info, message: redactSecretsFrom(info.message) } : info,
+);
+
 /** รูปแบบ output: YYYY-MM-DD HH:mm:ss [LEVEL  ]: message */
-const logFormat = winston.format.printf((info) => {
-  const level = String(info.level).toUpperCase().padEnd(LEVEL_WIDTH);
-  return `${info.timestamp} [${level}]: ${renderMessage(info.message)}`;
-});
+const logFormat = winston.format.combine(
+  redactSecrets(),
+  winston.format.printf((info) => {
+    const level = String(info.level).toUpperCase().padEnd(LEVEL_WIDTH);
+    return `${info.timestamp} [${level}]: ${renderMessage(info.message)}`;
+  }),
+);
 
 /**
  * console แสดงทุกระดับ (silly) เพื่อให้ดีบักได้เต็ม

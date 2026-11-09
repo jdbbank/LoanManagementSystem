@@ -52,11 +52,50 @@ export const monthKeys = (fromIso, toIso) => {
   return out;
 };
 
-/** Flat interest billed in one lump at disbursement (locked: no reducing-balance). */
+/** FLAT interest: the whole term billed in one lump at disbursement (historic behaviour, still the default). */
 export function billedInterestCents({ principalCents, ratePercent, rateUnit, termValue, termUnit }) {
   const ratePerMonth = ratePercent / MONTHS_PER_UNIT[rateUnit];
   const months = termInMonths(termValue, termUnit);
   return roundCents((principalCents * ratePerMonth * months) / 100);
+}
+
+/**
+ * DECLINING interest: one period charged on the principal still owed when that period starts,
+ * never on the original amount and never prorated by day. ratePercent is read per `rateUnit`
+ * through the locked month convention (1 month = 30 days), so the whole term is one charge per period.
+ */
+export function decliningPeriodInterestCents({ outstandingPrincipalCents, ratePercent, rateUnit }) {
+  if (outstandingPrincipalCents <= 0) return 0;
+  const ratePerMonth = ratePercent / MONTHS_PER_UNIT[rateUnit];
+  return roundCents((outstandingPrincipalCents * ratePerMonth) / 100);
+}
+
+/**
+ * DECLINING installments when the borrower settles every period on time: equal principal shares,
+ * each carrying interest on the balance that share leaves behind, so the installment falls as the
+ * loan ages. Interest is charged before principal, so paying the installment removes exactly one
+ * principal share from the balance.
+ */
+export function decliningPeriods({ principalCents, ratePercent, rateUnit, termValue, termUnit, startIso }) {
+  const count = periodCount(termValue, termUnit);
+  const perPrincipal = Math.floor(principalCents / count);
+  const periods = [];
+  let balance = principalCents;
+  for (let i = 0; i < count; i++) {
+    const last = i === count - 1;
+    const principalShareCents = last ? balance : perPrincipal;
+    const interestCents = decliningPeriodInterestCents({ outstandingPrincipalCents: balance, ratePercent, rateUnit });
+    periods.push({
+      index: i + 1,
+      dueDate: addMonths(startIso, i + 1),
+      openingBalanceCents: balance,
+      principalCents: principalShareCents,
+      interestCents,
+      installmentCents: principalShareCents + interestCents,
+    });
+    balance -= principalShareCents;
+  }
+  return periods;
 }
 
 export function periodCount(termValue, termUnit) {
@@ -64,8 +103,19 @@ export function periodCount(termValue, termUnit) {
 }
 
 /**
- * Derived installment view: principal and billed interest spread equally over the term,
- * the rounding remainder always landing on the final period so the parts sum exactly.
+ * Early-settlement fee in cents: the loan's own frozen percent applied to the principal still owed,
+ * charged only while an instalment has not come due yet (requirements: ค่าปรับปิดหนี้ก่อนครบสัญญา).
+ * A loan running to term end, or a product with 0%, pays nothing.
+ */
+export function earlySettlementFeeCents({ principalOutstandingCents, feePercent, settledBeforeTermEnd }) {
+  if (!settledBeforeTermEnd || !(Number(feePercent) > 0)) return 0;
+  return roundCents((Math.max(0, principalOutstandingCents) * Number(feePercent)) / 100);
+}
+
+/**
+ * Derived installment view for a FLAT loan: principal and the billed lump spread equally over the
+ * term, the rounding remainder always landing on the final period so the parts sum exactly.
+ * DECLINING loans do not use this — their interest sits on the period that billed it.
  */
 export function buildSchedule({ startIso, principalCents, interestCents, termValue, termUnit }) {
   const count = periodCount(termValue, termUnit);
@@ -222,6 +272,14 @@ export function postEvent(state, event) {
     }
     case 'PENALTY': {
       state.components.PENALTY += amountCents;
+      break;
+    }
+    case 'INTEREST_ACCRUAL': {
+      // One declining-balance period. Interest on money nobody owes would reopen a settled loan,
+      // so the charge only ever lands on a live one — the same rule the posting engine applies.
+      if (amountCents <= 0) throw new Error('oracle: interest accrual must be a positive charge');
+      if (state.status !== 'ACTIVE') throw new Error(`oracle: cannot accrue interest on a ${state.status} loan`);
+      state.components.PAST_INTEREST += amountCents;
       break;
     }
     case 'WAIVER': {

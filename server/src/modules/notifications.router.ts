@@ -10,7 +10,7 @@ import {
   declaredVariablesOf,
   DEFAULT_TEMPLATES,
 } from '../services/email-template.service';
-import { requeueNotification } from '../services/notification.service';
+import { requeueNotification, SECRET_EVENT_TYPES } from '../services/notification.service';
 import { authMiddleware, requireAuth, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/error';
 import { asyncHandler } from '../utils/async-handler';
@@ -110,7 +110,8 @@ router.get(
           type: row.type,
           recipientEmail: row.recipientEmail,
           recipientName: row.recipientName,
-          subject: row.subject,
+          // The delivery log is not a credential store: a reset email's subject is the OTP itself.
+          subject: SECRET_EVENT_TYPES.has(row.type) ? '<sealed>' : row.subject,
           locale: row.locale,
           status: row.status,
           attempts: row.attempts,

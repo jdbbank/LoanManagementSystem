@@ -23,24 +23,43 @@ import { api, unwrap } from '../api/client';
 import {
   COMPONENT_ORDER,
   formatLak,
+  InterestMethod,
   LoanStatus,
   PenaltyMode,
   type AllocationPreview,
   type CreditLedgerEntry,
+  type EarlySettlementFeePreview,
   type FinancialTransaction,
+  type InterestAccrualResult,
   type LoanDetail,
   type LoanSchedule,
+  type PayableNow,
 } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { OPERATOR_ROLES } from '../auth/roles';
+import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 import StatusChip from '../components/StatusChip';
 import CustomPagination from '../components/CustomPagination';
 import MoneyTextField from '../components/MoneyTextField';
+import LoanCollateralsPanel from '../components/LoanCollateralsPanel';
+import LoanDisbursementPanel from '../components/LoanDisbursementPanel';
+import LoanPartiesPanel from '../components/LoanPartiesPanel';
+import LoanRestructuresPanel from '../components/LoanRestructuresPanel';
+import { describeInterest } from '../utils/interest';
 import { describePenalty } from '../utils/penalty';
 
 const INITIAL_ROWS_PER_PAGE = 10;
-const TAB_KEYS = ['schedule.tabSummary', 'schedule.tabPeriods', 'schedule.tabPayments', 'schedule.tabCredit'] as const;
+const TAB_KEYS = [
+  'schedule.tabSummary',
+  'schedule.tabPeriods',
+  'schedule.tabPayments',
+  'schedule.tabCredit',
+  'hardship.tabParties',
+  'hardship.tabSecurity',
+  'hardship.tabAddendums',
+  'loans.tabDisbursement',
+] as const;
 
 interface LedgerResponse {
   ledger: CreditLedgerEntry[];
@@ -84,6 +103,9 @@ export default function LoanDetailPage() {
   const [ledgerRowsPerPage, setLedgerRowsPerPage] = useState(INITIAL_ROWS_PER_PAGE);
   const [charged, setCharged] = useState<string | null>(null);
   const [accrueError, setAccrueError] = useState<string | null>(null);
+  const [interestNote, setInterestNote] = useState<{ severity: 'success' | 'info' | 'error'; text: string } | null>(
+    null,
+  );
 
   const { data } = useQuery({
     queryKey: ['loan', id, transactionPage, transactionsPerPage],
@@ -108,6 +130,21 @@ export default function LoanDetailPage() {
         .get(`/loans/${id}/allocation-preview`, { params: { amount: numericAmount } })
         .then(unwrap<AllocationPreview>),
     enabled: Boolean(id) && numericAmount > 0,
+  });
+
+  /** What the payment gate would accept for this loan today — only instalments that have arrived. */
+  const { data: payable } = useQuery({
+    queryKey: ['loan', id, 'payable-now'],
+    queryFn: () => api.get(`/loans/${id}/payable-now`).then(unwrap<PayableNow>),
+    enabled: Boolean(id),
+  });
+
+  /** What closing the loan today would cost, including the early-settlement fee. Read-only quote. */
+  const { data: payoffFee } = useQuery({
+    queryKey: ['loan', id, 'early-settlement-fee'],
+    queryFn: () =>
+      api.get(`/settlements/early-settlement-fee/${id}`).then(unwrap<EarlySettlementFeePreview>),
+    enabled: Boolean(id),
   });
 
   const customerId = data?.loan.customerId;
@@ -139,11 +176,29 @@ export default function LoanDetailPage() {
     },
   });
 
+  /** The same maker-checker charge as the penalty accrual, priced on the principal still owed. */
+  const interestMutation = useMutation({
+    mutationFn: () =>
+      api.post('/transactions/interest/accrue', { loanIds: [id] }).then(unwrap<InterestAccrualResult>),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['loan', id] });
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      const created = result.created[0];
+      setInterestNote(
+        created
+          ? { severity: 'success', text: t('schedule.interestAccrueDone', { amount: formatLak(created.amount) }) }
+          : { severity: 'info', text: t('schedule.interestAccrueNone') },
+      );
+    },
+    onError: (e: Error) => setInterestNote({ severity: 'error', text: e.message }),
+  });
+
   if (!data) {
     return <Typography>{t('common.loading')}</Typography>;
   }
-
-  const { loan, transactions, settlements } = data;
+  const { loan, transactions, settlements, disbursement } = data;
   const locale = i18n.resolvedLanguage?.startsWith('lo') ? 'lo-LA' : 'en-GB';
   const translateStatus = (status: string) => t(`status.${status}`, { defaultValue: status });
   const outstanding = {
@@ -165,6 +220,14 @@ export default function LoanDetailPage() {
     : nothingToCharge
       ? t('schedule.accrueNone')
       : t('schedule.accrueInfo');
+
+  const declining = schedule?.interestMethod === InterestMethod.DECLINING;
+  const interestDue = schedule?.totals.interestSuggested ?? 0;
+  const interestCaption = !declining
+    ? t('schedule.interestAccrueDisabled')
+    : interestDue <= 0
+      ? t('schedule.interestAccrueNone')
+      : t('schedule.interestAccrueInfo');
 
   return (
     <Stack spacing={2}>
@@ -194,8 +257,11 @@ export default function LoanDetailPage() {
                     `${t('products.termDisplay', { value: loan.termValue, unit: t(`units.${loan.termUnit}`) })}`
                   }
                 />
-                <SummaryRow label={t('loanDetail.disbursedAt')} value={fmtDate(loan.disbursedAt, locale)} />
-                <SummaryRow label={t('loanDetail.created')} value={fmtDate(loan.createdAt, locale)} />
+                <SummaryRow
+                  label={t('products.interestMethod')}
+                  value={describeInterest(t, schedule?.interestMethod ?? loan.interestMethod)}
+                />
+                <SummaryRow label={t('loanDetail.disbursedAt')} value={fmtDate(loan.disbursedAt, locale)} />                <SummaryRow label={t('loanDetail.created')} value={fmtDate(loan.createdAt, locale)} />
               </Stack>
             </CardContent>
           </Card>
@@ -295,6 +361,12 @@ export default function LoanDetailPage() {
                               loan.currency,
                             )}
                           />
+                          {declining && (
+                            <SummaryRow
+                              label={t('schedule.interestSuggested')}
+                              value={formatLak(schedule.totals.interestSuggested, loan.currency)}
+                            />
+                          )}
                           <SummaryRow
                             label={t('schedule.penaltySuggested')}
                             value={formatLak(schedule.totals.penaltySuggested, loan.currency)}
@@ -349,6 +421,21 @@ export default function LoanDetailPage() {
                             : t('schedule.noPenalty')}
                         </Typography>
                       </Grid>
+                      {payoffFee && (
+                        <Grid size={{ xs: 12 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            {payoffFee.feePercent <= 0
+                              ? t('settlements.feeRuleNone')
+                              : payoffFee.settledBeforeTermEnd
+                                ? t('settlements.feeRuleEarly', {
+                                    percent: payoffFee.feePercent,
+                                    fee: formatLak(payoffFee.fee, loan.currency),
+                                    total: formatLak(payoffFee.totalDue, loan.currency),
+                                  })
+                                : t('settlements.feeRuleAtTermEnd')}
+                          </Typography>
+                        </Grid>
+                      )}
                       {canAccrue && (
                         <Grid size={{ xs: 12 }}>
                           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -363,6 +450,38 @@ export default function LoanDetailPage() {
                               {accrueCaption}
                             </Typography>
                           </Stack>
+                        </Grid>
+                      )}
+                      {canAccrue && declining && (
+                        <Grid size={{ xs: 12 }}>
+                          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Button
+                              variant="outlined"
+                              onClick={() => {
+                                setInterestNote(null);
+                                interestMutation.mutate();
+                              }}
+                              disabled={interestDue <= 0 || interestMutation.isPending}
+                            >
+                              {interestMutation.isPending
+                                ? t('common.loading')
+                                : t('schedule.interestAccrue', {
+                                    amount: formatLak(interestDue, loan.currency),
+                                  })}
+                            </Button>
+                            <Typography variant="caption" color="text.secondary">
+                              {interestCaption}
+                            </Typography>
+                          </Stack>
+                          {interestNote && (
+                            <Alert
+                              severity={interestNote.severity}
+                              sx={{ mt: 1 }}
+                              onClose={() => setInterestNote(null)}
+                            >
+                              {interestNote.text}
+                            </Alert>
+                          )}
                         </Grid>
                       )}
                       {charged && (
@@ -397,6 +516,17 @@ export default function LoanDetailPage() {
                     onChange={setAmount}
                     sx={{ width: 300, mb: 2 }}
                   />
+                  {payable && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -1, mb: 2 }}>
+                      {t('payments.maxPayableToday')}: {formatLak(payable.maxPayable, loan.currency)}
+                      {payable.nextPendingPeriod
+                        ? ` · ${t('payments.nextPeriodDate', {
+                            index: payable.nextPendingPeriod.index,
+                            date: fmtDay(payable.nextPendingPeriod.dueDate, locale),
+                          })}`
+                        : ''}
+                    </Typography>
+                  )}
                   {preview && (
                     <Stack spacing={1}>
                       <Grid container spacing={1}>
@@ -418,6 +548,14 @@ export default function LoanDetailPage() {
                       {preview.excess > 0 && (
                         <Alert severity="info">
                           {t('loanDetail.overpayment', { amount: formatLak(preview.excess, loan.currency) })}
+                        </Alert>
+                      )}
+                      {payable && numericAmount > payable.maxPayable + 0.004 && (
+                        <Alert severity="warning">
+                          {t('payments.overMaxPayable', {
+                            requested: formatLak(numericAmount, loan.currency),
+                            max: formatLak(payable.maxPayable, loan.currency),
+                          })}
                         </Alert>
                       )}
                     </Stack>
@@ -450,7 +588,9 @@ export default function LoanDetailPage() {
             <Box sx={{ pt: 2 }}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {schedule
-                  ? `${t('schedule.periodsCount', { count: schedule.periodCount })} · ${t('schedule.fifoNote')}`
+                  ? `${t('schedule.periodsCount', { count: schedule.periodCount })} · ${t('schedule.fifoNote')}${
+                      declining ? ` · ${t('schedule.interestPerPeriodNote')}` : ''
+                    }`
                   : t('common.loading')}
               </Typography>
               <Box sx={{ overflowX: 'auto' }}>
@@ -498,11 +638,7 @@ export default function LoanDetailPage() {
                       </TableRow>
                     ))}
                     {schedule && schedule.periods.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={12} align="center">
-                          {t('schedule.noPeriods')}
-                        </TableCell>
-                      </TableRow>
+                      <EmptyState colSpan={12} message={t('schedule.noPeriods')} />
                     )}
                   </TableBody>
                 </Table>
@@ -549,11 +685,7 @@ export default function LoanDetailPage() {
                       </TableRow>
                     ))}
                     {transactions.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} align="center">
-                          {t('schedule.noPayments')}
-                        </TableCell>
-                      </TableRow>
+                      <EmptyState colSpan={7} message={t('schedule.noPayments')} />
                     )}
                   </TableBody>
                 </Table>
@@ -610,11 +742,7 @@ export default function LoanDetailPage() {
                       </TableRow>
                     ))}
                     {ledger && ledger.data.ledger.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center">
-                          {t('credits.noEntries')}
-                        </TableCell>
-                      </TableRow>
+                      <EmptyState colSpan={4} message={t('credits.noEntries')} />
                     )}
                   </TableBody>
                 </Table>
@@ -630,6 +758,30 @@ export default function LoanDetailPage() {
                 }}
               />
             </Stack>
+          )}
+
+          {tab === 4 && (
+            <Box sx={{ pt: 2 }}>
+              <LoanPartiesPanel loanId={loan.id} />
+            </Box>
+          )}
+
+          {tab === 5 && (
+            <Box sx={{ pt: 2 }}>
+              <LoanCollateralsPanel loanId={loan.id} />
+            </Box>
+          )}
+
+          {tab === 6 && (
+            <Box sx={{ pt: 2 }}>
+              <LoanRestructuresPanel loanId={loan.id} />
+            </Box>
+          )}
+
+          {tab === 7 && (
+            <Box sx={{ pt: 2 }}>
+              <LoanDisbursementPanel loan={loan} disbursement={disbursement} />
+            </Box>
           )}
         </CardContent>
       </Card>

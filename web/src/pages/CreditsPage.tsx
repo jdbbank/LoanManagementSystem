@@ -1,8 +1,9 @@
+import EmptyState from '../components/EmptyState';
+import TableSkeleton from '../components/TableSkeleton';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -69,7 +70,7 @@ export default function CreditsPage() {
       <Card>
         <CardContent>
           {creditsQuery.isLoading ? (
-            <Stack sx={{ alignItems: 'center', py: 4 }}><CircularProgress /></Stack>
+            <TableSkeleton columns={6} label={t('common.loading')} />
           ) : (
             <Table size="small">
               <TableHead>
@@ -93,7 +94,7 @@ export default function CreditsPage() {
                     <TableCell><Button size="small" onClick={() => { setSelected(credit); setLedgerPage(0); }}>{t('credits.ledger')}</Button></TableCell>
                   </TableRow>
                 ))}
-                {creditsQuery.data?.data.length === 0 && <TableRow><TableCell colSpan={6} align="center">{t('credits.noCredits')}</TableCell></TableRow>}
+                {creditsQuery.data?.data.length === 0 && <EmptyState colSpan={6} message={t('credits.noCredits')} />}
               </TableBody>
             </Table>
           )}
@@ -113,7 +114,7 @@ export default function CreditsPage() {
         <DialogTitle>{t('credits.ledgerTitle', { customer: selected?.customer?.fullName ?? selected?.customerId })}</DialogTitle>
         <DialogContent>
           {ledgerQuery.isError && <Alert severity="error">{(ledgerQuery.error as Error).message}</Alert>}
-          {ledgerQuery.isLoading ? <CircularProgress /> : (
+          {ledgerQuery.isLoading ? <TableSkeleton columns={5} label={t('common.loading')} /> : (
             <Stack spacing={1}>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
                 {t('credits.currentBalance')} {formatLak(ledgerQuery.data?.data.currentBalance ?? 0, selected?.currency)}
@@ -130,7 +131,7 @@ export default function CreditsPage() {
                       <TableCell align="right">{formatLak(entry.balanceAfter, selected?.currency)}</TableCell>
                     </TableRow>
                   ))}
-                  {ledgerQuery.data?.data.ledger.length === 0 && <TableRow><TableCell colSpan={5} align="center">{t('credits.noEntries')}</TableCell></TableRow>}
+                  {ledgerQuery.data?.data.ledger.length === 0 && <EmptyState colSpan={5} message={t('credits.noEntries')} />}
                 </TableBody>
               </Table>
               <CustomPagination

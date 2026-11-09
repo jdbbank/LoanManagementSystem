@@ -1,14 +1,19 @@
-import { createHash, randomBytes, randomInt } from 'crypto';
+import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import { EntityManager, IsNull, MoreThan } from 'typeorm';
 import { env } from '../config/env';
 import { PasswordResetToken } from '../entities/password-reset-token.entity';
 import { ResetTokenKind } from '../entities/types';
 
 /**
- * Password-reset secrets. Only the SHA-256 of a secret is stored, so a leaked database
- * cannot be turned into a login. Rows survive use for the audit trail.
+ * Password-reset secrets. Only a keyed digest of a secret is stored, so a leaked database cannot be
+ * turned into a login. Rows survive use for the audit trail.
+ *
+ * Hashing rather than encrypting is deliberate, and so is the key. A plain SHA-256 was crackable at
+ * the size these secrets are: an OTP is six digits, so a dump-holder could hash all million possible
+ * codes and match every outstanding row in seconds. With HMAC the attacker needs the pepper as well,
+ * which lives in the service's environment rather than in the table it would be read from.
  */
-const hashToken = (raw: string): string => createHash('sha256').update(raw).digest('hex');
+const hashToken = (raw: string): string => createHmac('sha256', env.security.tokenPepper).update(raw).digest('hex');
 
 const ttlMinutes = (kind: ResetTokenKind): number =>
   kind === ResetTokenKind.OTP ? env.security.otpTtlMinutes : env.security.linkTtlMinutes;
@@ -81,9 +86,18 @@ export async function findActiveSecretForUser(
   });
 }
 
-/** Comparison against the stored hash, so the plaintext never leaves the caller's request. */
+/**
+ * Comparison against the stored digest, so the plaintext never leaves the caller's request.
+ *
+ * The strings are the same length by construction, so a difference in length is the only case where
+ * the answer can be given early; `timingSafeEqual` refuses unequal buffers rather than leaking through
+ * the byte it stops on.
+ */
 export function verifySecret(row: PasswordResetToken, raw: string): boolean {
-  return row.tokenHash === hashToken(raw);
+  const candidate = Buffer.from(hashToken(raw), 'utf8');
+  const stored = Buffer.from(row.tokenHash, 'utf8');
+  if (candidate.length !== stored.length) return false;
+  return timingSafeEqual(candidate, stored);
 }
 
 /** Every password in the world invalidates every outstanding secret of that account. */export async function retireAllSecrets(em: EntityManager, userId: string): Promise<number> {
@@ -97,25 +111,43 @@ export function verifySecret(row: PasswordResetToken, raw: string): boolean {
   return result.affected ?? 0;
 }
 
-/** Marks a secret spent; after this it can never be replayed. */
-export async function consumeSecret(em: EntityManager, row: PasswordResetToken): Promise<void> {
-  row.usedAt = new Date();
-  await em.save(PasswordResetToken, row);
+/**
+ * Spends a secret and says whether THIS caller is the one that spent it. Concurrent requests all
+ * read the same unused row, so re-checking `usedAt IS NULL` inside the write is what keeps a code
+ * single-use (F-CONC-4).
+ */
+export async function claimSecret(em: EntityManager, row: PasswordResetToken): Promise<boolean> {
+  const result = await em
+    .createQueryBuilder()
+    .update(PasswordResetToken)
+    .set({ usedAt: new Date() })
+    .where('id = :id', { id: row.id })
+    .andWhere('usedAt IS NULL')
+    .execute();
+  return (result.affected ?? 0) === 1;
 }
 
-/** One wrong guess. Returns the attempts left, or null when the secret is now burned. */
-export async function registerBadAttempt(
-  em: EntityManager,
-  row: PasswordResetToken,
-): Promise<number | null> {
-  row.attempts += 1;
-  const left = env.security.otpMaxAttempts - row.attempts;
-  if (left <= 0) {
-    await consumeSecret(em, row);
-    return null;
-  }
-  await em.save(PasswordResetToken, row);
-  return left;
+export type AttemptOutcome = { kind: 'left'; left: number } | { kind: 'burned' } | { kind: 'spent' };
+
+/**
+ * Counts one wrong guess. The counter is raised in SQL rather than in JS, because parallel guesses
+ * read-modify-writing the same row lost counts and left a burned code usable (F-CONC-4).
+ */
+export async function registerBadAttempt(em: EntityManager, row: PasswordResetToken): Promise<AttemptOutcome> {
+  await em
+    .createQueryBuilder()
+    .update(PasswordResetToken)
+    .set({ attempts: () => 'attempts + 1' })
+    .where('id = :id', { id: row.id })
+    .andWhere('usedAt IS NULL')
+    .execute();
+
+  const fresh = await em.findOneByOrFail(PasswordResetToken, { id: row.id });
+  if (fresh.usedAt) return { kind: 'spent' };
+
+  const left = env.security.otpMaxAttempts - fresh.attempts;
+  if (left > 0) return { kind: 'left', left };
+  return (await claimSecret(em, row)) ? { kind: 'burned' } : { kind: 'spent' };
 }
 
 /** True when this user asked for the same kind of secret inside the cooldown window. */

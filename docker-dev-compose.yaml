@@ -1,0 +1,1355 @@
+version: '3.8'
+services:
+
+  api-counter-service:
+    build: ./api-counter-service/
+    restart: always
+    container_name: api-counter-service
+    environment:
+
+      - NODE_ENV=development
+      - PORT=8086
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+
+      - SECERT_KEY_ENCTYP=jdb@6LeGaEsp@bopbyk8cntt
+      - SITE_KEY=6LeGaEspAAAAACK1-fbbLkk_e3Ol7-zAfbFHQRLF
+      - SECERT_KEY=6LeGaEspAAAAANVz4iblum1jantSpquTuwqhru5t
+      - LINK_RECAPTCHA=https://www.google.com/recaptcha/api/siteverify?secret
+
+      - SENT_MAIL_RESET_PASSWORD=https://bioservice.jdbbank.com.la:12042/ResetPassword
+
+      - MAIL_NAME=card.jdb.register@gmail.com
+      - PASS_MAIL=vusc puxu quub wpux
+      - SERVICE=gmail
+
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+      - REGISTERLINK_URL=https://bioservice.jdbbank.com.la:12042/RegisterCard?key=
+
+      - KEY_ENCRYPTED=1qazZAQ!@apiCounterService
+
+      - API_IT_BASE_URL=http://172.21.26.94:3003/api/uat
+      - API_IT_USER_ID=cif_dev
+      - API_IT_SECRET_ID=UIHFosedhfsIHioHio4J15LQIKHP8E8UOO0TfEUGhgjshdyGFoF3PIO3VSE+ZO4NN7193I9rOWD8CT3P35OIYCLIHuhbjsdGYGUYsdfTITOGiME7UMYTFGTDCUKCFVRMFb
+
+      - SFTP_HOST=172.21.57.20
+      - SFTP_PORT=22
+      - SFTP_USERNAME=Finexus01
+      - SFTP_PASSWORD=sFTPfine@2017
+
+      - KAFKA_TOPIC=test
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=bills-consumer-group
+      - KAFKA_CLIENTID=sample-kafka-client
+
+      - KAFKA_TOPIC_UPLOAD=upload_file
+      - KAFKA_BROKERS_UPLOAD=kafka:19092
+      - KAFKA_GROUPID_UPLOAD=upload-consumer-group
+      - KAFKA_CLIENTID_UPLOAD=upload-kafka-client
+
+      - REDIS_HOST=redis-container
+      - REDIS_PORT=6379
+
+      - API_BASE_URL=http://172.21.26.94:3004/api/uat/OpenAccount
+      - API_USER_ID=OACOnline
+      - API_PASSWORD=NBH7AFQOG4P3JV6PHVWVYFO41A0QXU41WHFESKNL63E58F6I5XD61L8OMIY8AVQDL5HBGUANZB16VVN78DWZFCQJZEN2FDYR9WGO
+
+
+      - REACT_APP_PATH_IMG=http://172.21.26.83:8086/uploads/
+      - REACT_APP_PATH_CONTRACT=http://172.21.26.83:8086/uploads/
+      - API_GRG_BASE_URL=https://bioservice.jdbbank.com.la:12042/feel_apis
+      - PASSWORD_GER=JDBjdb666
+      - USERNAME_GER=android
+      - NODE_ENV=production
+
+      - URL_SERVICE_CORE_BANK=http://172.21.26.83:8089/api/v1
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+
+
+      - KAFKA_TOPIC_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-Topic
+      - KAFKA_BROKERS_ADD_NEW_CUSTOMER_GRG=kafka:19092
+      - KAFKA_GROUPID_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-consumer-group
+      - KAFKA_CLIENTID_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-client
+
+
+      - MSSQL_DATABASE=CWJDB
+      - MSSQL_SERVER=172.21.57.36
+      - MSSQL_USERNAME=sa
+      - MSSQL_PASSWORD=adminjdb
+
+
+    volumes:
+      - ./app/uploadSignature:/app/uploadSignature
+      - ./app/uploads:/app/uploads
+      - ./app/image:/app/image
+
+    ports:
+      - "8086:8086"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - redis-container
+      - node-file-server
+      - kafka
+
+
+  api-landing-page:
+    build: ./BackendCard/
+    restart: always
+    container_name: api-landing-page
+    environment:
+      - NODE_ENV=development
+      - PORT=8088
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+
+      - SECERT_KEY_ENCTYP=jdb@6LeGaEsp@bopbyk8cntt
+      - SITE_KEY=6LeGaEspAAAAACK1-fbbLkk_e3Ol7-zAfbFHQRLF
+      - SECERT_KEY=6LeGaEspAAAAANVz4iblum1jantSpquTuwqhru5t
+      - LINK_RECAPTCHA=https://www.google.com/recaptcha/api/siteverify?secret
+
+      - SENT_MAIL_RESET_PASSWORD=https://bioservice.jdbbank.com.la:12042/ResetPassword
+
+      - MAIL_NAME=card.jdb.register@gmail.com
+      - PASS_MAIL=dekh smyk fkeb pfyt
+      - SERVICE=gmail
+
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+      - REGISTERLINK_URL=https://bioservice.jdbbank.com.la:12042/RegisterCard?key=
+
+      - API_IT_BASE_URL=http://172.21.26.94:3003/api/uat
+      - API_IT_USER_ID=cif_dev
+      - API_IT_SECRET_ID=UIHFosedhfsIHioHio4J15LQIKHP8E8UOO0TfEUGhgjshdyGFoF3PIO3VSE+ZO4NN7193I9rOWD8CT3P35OIYCLIHuhbjsdGYGUYsdfTITOGiME7UMYTFGTDCUKCFVRMFb
+
+      - SFTP_HOST=172.21.57.20
+      - SFTP_PORT=22
+      - SFTP_USERNAME=Finexus01
+      - SFTP_PASSWORD=sFTPfine@2017
+
+      - KAFKA_TOPIC=test
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=bills-consumer-group
+      - KAFKA_CLIENTID=sample-kafka-client
+
+      - KAFKA_TOPIC_UPLOAD=upload_file
+      - KAFKA_BROKERS_UPLOAD=kafka:19092
+      - KAFKA_GROUPID_UPLOAD=upload-consumer-group
+      - KAFKA_CLIENTID_UPLOAD=upload-kafka-client
+
+      - REDIS_HOST=redis-container
+      - REDIS_PORT=6379
+      - KEY_ENCRYPTED=1qazZAQ!@apiCounterService
+
+     
+      - API_BASE_URL=http://172.21.26.94:3004/api/uat/OpenAccount
+      - API_USER_ID=OACOnline
+      - API_PASSWORD=NBH7AFQOG4P3JV6PHVWVYFO41A0QXU41WHFESKNL63E58F6I5XD61L8OMIY8AVQDL5HBGUANZB16VVN78DWZFCQJZEN2FDYR9WGO
+
+      - REACT_APP_PATH_IMG=http://172.21.26.83:8088/uploadSignature/
+
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+
+      - KAFKA_TOPIC_WEB_HOOK_STATUS=webhook-topic
+      - KAFKA_BROKERS_WEB_HOOK_STATUS=kafka:19092
+      - KAFKA_GROUPID_WEB_HOOK_STATUS=webhook-group
+      - KAFKA_CLIENTID_WEB_HOOK_STATUS=webhook-client
+      - OW_SERVICE=http://172.21.57.13:3111/api
+      - API_KEY=1qazZAQ!_apiVirtual
+      - IN_HOME=http://172.21.26.97:8096
+      - PIN_SECRET_KEY:JDB_PIN_SECRET_1qazZAQ!
+
+      - API_BIOMETRIC_URL:https://bioservice.jdbbank.com.la:12042/feel_apis
+      - API_BIOMETRIC_USER:android
+      - API_BIOMETRIC_PASS:ghC+NVrfHgm/Cf+Q+vjkLD+KHKnvkMqwwPnNdpsaHZcoa/xz/lP6qFWpt9XZvSQ6ojV9OMPcVi0JIcb/BbEKhhQLOPZTNZxlOJNDrMQpMozzLazEqZMfCpVUdWzxNNtp9HeMNHkC+T3KkAZwWPQ2m8VCgGUhJ7qy0QiC7o/0UpY=
+
+      - MSSQL_SERVER=172.21.57.36
+      - MSSQL_USERNAME=sa
+      - MSSQL_PASSWORD=adminjdb
+      - MSSQL_DATABASE=CWJDB
+    volumes:
+      - ./app/uploadSignature:/app/uploadSignature
+      - ./app/uploads:/app/uploads
+      - ./app/image:/app/image
+
+    ports:
+      - "8088:8088"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - redis-container
+      - node-file-server
+      - kafka
+
+  api-open-account:
+    build: ./api-open-account/
+    restart: always
+    container_name: api-open-account
+    environment:
+      - NODE_ENV=development
+      - PORT=8089
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+
+      - SECERT_KEY_ENCTYP=jdb@6LeGaEsp@bopbyk8cntt
+      - SITE_KEY=6LeGaEspAAAAACK1-fbbLkk_e3Ol7-zAfbFHQRLF
+      - SECERT_KEY=6LeGaEspAAAAANVz4iblum1jantSpquTuwqhru5t
+
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+
+      - KAFKA_TOPIC_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-Topic
+      - KAFKA_BROKERS_ADD_NEW_CUSTOMER_GRG=kafka:19092
+      - KAFKA_GROUPID_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-consumer-group
+      - KAFKA_CLIENTID_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-client
+
+
+      
+      - API_BASE_URL=http://172.21.26.94:3004/api/uat/OpenAccount
+      - API_USER_ID=OACOnline
+      - API_PASSWORD=NBH7AFQOG4P3JV6PHVWVYFO41A0QXU41WHFESKNL63E58F6I5XD61L8OMIY8AVQDL5HBGUANZB16VVN78DWZFCQJZEN2FDYR9WGO
+
+
+      - REDIS_HOST=redis-container
+      - REDIS_PORT=6379
+
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+
+
+      # Encrypted
+      - KEY_ENCRYPTED=1qazZAQ!@apiCounterService
+
+
+      #UPLOAD DOCUMENT
+      - KAFKA_TOPIC_UPLOAD_DOC=upload-document
+      - KAFKA_BROKERS_UPLOAD_DOC=kafka:19092
+      - KAFKA_GROUPID_UPLOAD_DOC=upload-document-consumer-group
+      - KAFKA_CLIENTID_UPLOAD_DOC=upload-document-client
+
+      - KAFKA_TOPIC_UPDATE_CUS_INF=Approve-open-account
+      - KAFKA_BROKERS_UPDATE_CUS_INF=kafka:19092
+      - KAFKA_GROUPID_UPDATE_CUS_INF=Approve-open-account-consumer-group
+      - KAFKA_CLIENTID_UPDATE_CUS_INF=Approve-open-account-client
+
+
+      - KAFKA_TOPIC_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-Topic
+      - KAFKA_BROKERS_ADD_NEW_CUSTOMER_GRG=kafka:19092
+      - KAFKA_GROUPID_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-consumer-group
+      - KAFKA_CLIENTID_ADD_NEW_CUSTOMER_GRG=Registry-Face-Cif-client
+
+    ports:
+      - "8089:8089"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - redis-container
+      - node-file-server
+      - kafka
+
+  api-approve-account:
+    build: ./api-approve-account/
+    restart: always
+    container_name: api-approve-account
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+      - NODE_ENV=development
+      - PORT=8087
+      - KEY_ENCRYPTED=1qazZAQ!@apiCounterService
+
+      - KAFKA_TOPIC=Approve-open-account
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=Approve-open-account-consumer-group
+      - KAFKA_CLIENTID=Approve-open-account-client
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+
+
+      - KAFKA_TOPIC_MAIL_SERVICE=test
+      - KAFKA_BROKERS_MAIL_SERVICE=kafka:19092
+      - KAFKA_GROUPID_MAIL_SERVICE=bills-consumer-group
+      - KAFKA_CLIENTID_MAIL_SERVICE=sample-kafka-client
+
+      - MAIL_NAME=card.jdb.register@gmail.com
+      - PASS_MAIL=vusc puxu quub wpux
+      - SERVICE=gmail
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - kafka
+
+  api-grg:
+    build: ./api-grg/
+    restart: always
+    container_name: api-grg
+    environment:
+      - NODE_ENV=development
+      - PORT=8090
+
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+
+      - API_GRG_BASE_URL=https://bioservice.jdbbank.com.la:12042/feel_apis
+      - PASSWORD_GER=JDBjdb666
+      - USERNAME_GER=android
+      - NODE_ENV=production
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+      - KEY_ENCRYPTED=1qazZAQ!@apiCounterService
+    ports:
+      - "8090:8090"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - kafka
+
+
+  node-api-partner:
+    build: ./api-onboarding/
+    restart: always
+    container_name: node-api-partner
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - SECRET_KEY=Bopby-k8cntt-2022
+      - KEY_ENCRYPTED=1qazZAQ!@api_partner
+      - NODE_ENV=development
+      - PORT=8083
+      - SECERT_KEY_ENCTYP=jdb@6LeGaEsp@bopbyk8cntt
+      - SITE_KEY=6LeGaEspAAAAACK1-fbbLkk_e3Ol7-zAfbFHQRLF
+      - SECERT_KEY=6LeGaEspAAAAANVz4iblum1jantSpquTuwqhru5t
+      - LINK_RECAPTCHA=https://www.google.com/recaptcha/api/siteverify?secret
+
+      - SENT_MAIL_RESET_PASSWORD=https://card.jdbbank.com.la:12034/ResetPassword
+
+      - MAIL_NAME=card.jdb.register@gmail.com
+      - PASS_MAIL=vusc puxu quub wpux
+      - SERVICE=gmail
+
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+      - REGISTERLINK_URL=https://card.jdbbank.com.la:12034/RegisterCard?key=
+      - API_IT_BASE_URL=http://172.21.26.94:3003/api/uat
+      - API_IT_USER_ID=cif_dev
+      - API_IT_SECRET_ID=UIHFosedhfsIHioHio4J15LQIKHP8E8UOO0TfEUGhgjshdyGFoF3PIO3VSE+ZO4NN7193I9rOWD8CT3P35OIYCLIHuhbjsdGYGUYsdfTITOGiME7UMYTFGTDCUKCFVRMFb
+
+      - SFTP_HOST=172.21.57.20
+      - SFTP_PORT=22
+      - SFTP_USERNAME=Finexus01
+      - SFTP_PASSWORD=sFTPfine@2017
+      
+      - KAFKA_TOPIC=test
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=bills-consumer-group
+      - KAFKA_CLIENTID=sample-kafka-client
+      
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+
+      - KAFKA_TOPIC_UPLOAD=upload_file
+      - KAFKA_BROKERS_UPLOAD=kafka:19092
+      - KAFKA_GROUPID_UPLOAD=upload-consumer-group
+      - KAFKA_CLIENTID_UPLOAD=upload-kafka-client
+
+      - REDIS_HOST=redis-container
+      - REDIS_PORT=6379
+      - API_BASE_URL=http://172.21.26.94:3004/api/uat/OpenAccount
+      - API_USER_ID=OACOnline
+      - API_PASSWORD=NBH7AFQOG4P3JV6PHVWVYFO41A0QXU41WHFESKNL63E58F6I5XD61L8OMIY8AVQDL5HBGUANZB16VVN78DWZFCQJZEN2FDYR9WGO
+
+      - KAFKA_TOPIC_WEB_HOOK_STATUS=webhook-topic
+      - KAFKA_BROKERS_WEB_HOOK_STATUS=kafka:19092
+      - KAFKA_GROUPID_WEB_HOOK_STATUS=webhook-group
+      - KAFKA_CLIENTID_WEB_HOOK_STATUS=webhook-client
+
+      - MSSQL_DATABASE=CWJDB
+      - MSSQL_SERVER=172.21.57.36
+      - MSSQL_USERNAME=sa
+      - MSSQL_PASSWORD=adminjdb
+
+      - API_CARD_BASE_URL=http://172.21.57.13:3111
+      - API_CARD_SECRET=mT3hOg8ItgIqI8Reu2D1nseQ5AJ9VMPoyBHWTqYVr3g=
+      
+    volumes:
+      - ./app/uploadSignature:/app/uploadSignature
+
+    ports:
+      - "8083:8083"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - kafka
+      - redis-container
+      - node-file-server
+
+
+  api-sys-param:
+    build: ./api-sys-parameter/
+    restart: always
+    container_name: api-sys-parameter
+    environment:
+      - NODE_ENV=development
+      - PORT=8060
+
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+
+      - REDIS_HOST=redis-container
+      - REDIS_PORT=6379
+
+    ports:
+      - "8060:8060"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - redis-container
+
+
+
+  api-payment:
+    build: ./api-payment/
+    restart: always
+    container_name: api-payment
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+
+      - URL_2C2P=https://core.paco.2c2p.com
+      - OFFICE_ID=000002105010017
+
+      - JDB_SIGNING_PUBLIC_KEY=MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAr0XW6QacR8GilY4nZrJZW40wnFeYu7h9aXUSqxCP6djurCWZmLqnrsYWP7/HR8WOulYPHTVpfqJesTOdVqPgY6p10H811oRbJG9jvsG8j8kn/Bk8b2wZ9qelNqdNJMDbR5WUyaytaDWW6QdI4+clqjFfwCOw76noDSe+R4pDSzgMiyCk5R4m2ECT1fv/4Axz2bvLN+DRTg5DPPIMLWpA87lgjxeaDlGyJqZCbkJozW7JX0AJVc0X7YR9kzbiTi3LVOInSKY+VHT8yCARIdvXtKc6+IWSbVQqgpNIBB8GN0OvU8xedjPNCMGZnnMtgd7XLTf/okyadbdNLAqQLTbDs/5HnIVx8FyfgiOS/zsim5ivi3ljVAW3T3ePGjkY0q1DMzr5iJ4m/WTL2d1TArlfHyQhkSpFpQPOO+pJyVQqttHJo99vMirQogdSx4lIu//aod0yJyJLpjCeiqb2Fz3Qk0AZ4S78QKeeGsxTRchTP6Wsb6okaZd+cFi6z8qbP0z/Y3xRZO7vOLB/whkqS+pMVKBQ42YzgQPRzbXXmgCkf1nCqgrD9bnIB5ovdRGfDXW86GKY8XwGVjb4BoMvql+HsbonKHAO+eGfQulpB5YfQGQU3ZXdMdfCLAk8FuqemH4k7S7diLzVvRCuisHsEx6qJ4ewxzNCvW7OGVinTR9NSQUCAwEAAQ==
+      - JDB_ENCRYPTION_PUBLIC_KEY=MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA6ZLups2K0iYEMxQqgASX8gY6tWhNVCp08YuDgjCsOVrGVgUHD0dh0TWFNJ7Lq2Jp0SOsGgi54+hrjwPOL2CCZxw8pKUlL57UksoD9oWUrK/KkSvEAwPU4cZqzxIXyhBcZb8O96iN4WQJILkRTg+DXLkML6qisO496fPGIs+vCoc87toucy5O9fRfaYSjcqjreyi8JDkvVJM/BeNtOEM2a0b/lcWa67RH+tN97H25k+Qez7QthLru6oBfWBgD6iIwhV+ICqLWHmp6fQ+DHQk/o+OO3yFiY9OAvMiy8MOTinvkBlFwYgYNznG3/w0Xh8U5vtudUXPDNUO6ddf4y99+6LlWDiKgJn/Th93YUg+gFH4LUJHyPrSY2JuC+Q8kksp2xyiZDTHGzi96kturwrqCui6TytCHcU4UB0VRMR+M7VRl3S2YPhcxv5U8Fh2PITqydZE5vv1Va06qhegjOlSZnEUl2xKPm5k/u+UHvUP/oq04fQLTlYqyA3JYDCe4z5Ea2SOgjeVl+qTatWYzmkUXyCONLZ4UaRrgbYCp0nCPHoTFgRQdChu8ezDbnYY9IW7cT/s2fEi5N7X1XrQttiEP4rbn0y0qVYYjN86+elfhtYGHidZTUSUS5RSTHqOkj59p5LIGwFF9iTXzCjfUqq8clnfOk76qSLY1+Kj+SMMe6Z8CAwEAAQ==
+      - PARTNER_PRIVATE_ENCRYPTION_KEY=MIIJQQIBADANBgkqhkiG9w0BAQEFAASCCSswggknAgEAAoICAQC18M4rMRDk66U3asOe2bAT6ECgZGN6cwqIolR4XdK6MQ09URAl6PHKip+Hl54bvPIoC+AIuu72G++cR4xHV5gwrJ8YE/h4GMmLxlpNY7kbiqlKvWDLLjFvtz0+JJD9R8Da03j/t8bTlX0w1syaeARG8D7xWbTcN+7qvXRt4L9nvV7NX4rfban1eYGgR1M++3f/PLQai+mnV1BUu8SNy8xDDcLNOQswi7kDdEklf7FtIGpZFUBzJr0oa8pARKrK/A9ysMcSDZDHP2DRx8qb5EqPKbFbhJKnXKeUJoDjbdBY3Hu17ysu7bVdtiQpmJjOqGSe1cy4kyLxQb6+QexhcKkNNMJhYWg1Wj1RcDb67AdXt1BJw1pwbqsgxx9DN1GYV3t9Ek1cvlvXv+JBeF5JK/YnE0wFHUFa3tkSk3JraxGHnQVDWP6Hu3BaxpOcQFez0C8r/Y9cg81rVFsbUXx+7eF8PK5j4zFvRICtXH+CqVPuaA9FdZFVB6/wL6Z6rU0/6Yvl28NJIUzcEQqfnzIEMkyf+ZJbJrnzlONBDNT14CGCmMOJWsfbDtauAy8rdkCTIIOTe2pqhVHEMZmIeknC1YPCOJvnNQvwyw9VivZ7Nz/2xDTjBzirsIjxZh6q2a91BVC/xYAP0/gduAfUO4m9KepWwkUUq7MFaBCaCw5Tw6olmQIDAQABAoICABW0CMf2tar1IDOE4Rp/IcWyKBlp+ELoW7qSUKy+Fm/e/5MPqzM2fzdXw3F3iOUKrEFSL1KjR/OkP/g+wbFV9eHiiaTj5vkejdZGXknKik+KgijX/+ak10FaFKxnzMLl7w+7d7zbZZSiSbmMegI4LFxw9rUwLAa0BmRKnsunqnV7zcYGbmi6KnLNoISn1XqXIUiZa2uaQpBTdlHxRyBaDf72soTsF9Vd6X9LvRkDyzy3B/Ch/BrwZVKfzxPNDSmjGU2nYEvbQei+uvQzVswzVqCOyukdnqfnwdbGpAvdMuQSwxAgHGDf+slXu6cZnKrURBJ9cwsWhC3O16vW7dVuzL+CgPU/qOMH3cXFXhnXFH0eo/Lvr8rS61/PdSI2L9U3VBdEu1410R17KclKLygPCqpRPgzoigJB9yGu3qe3YSUNFOzL4ySJDBvrrqFxuu6QAxuUQM7Fkv0yBYZuP0ya2QZd5tUPQsDMerRmfuKJ7Eu5Rt2QTVW7ANs51hP9Pnai/SIFjtdDYLVMgR8N2OfM+PgFdspn6gSvXorFpgaXOpuucTOhDbWg+47hGkRweW4psBNBj3C0U0Dow9C4cnKyTMwf8bs2eiW92E2s5YZkurRaK2Bk1Gq1NJrSJjuKQli6nyYoFtKzYC2nT8EeXiE7kB8tdL+B5trmvBaWOUgX+RwBAoIBAQDwTas+4nJ7/r0EAkIHUm/beJcgp5s0E0AcHUMvgysbaq1mZs5DhzObhpbvpfg+DtC9j5hJ8pichK6iYdM1fP6I8VnyficjSI9d8mfHTEk7oG1PzPsL6tNmh88C98YGk4PoyAI2zp2BpkWuBaNStGaqAwTHjv3FNz4qi1wzaRUwxZ/zhmYqJWd2VvBv5wU+TqOR/H0YeMvByCwbb72GnPGBDV1GWqmY+GaZAsl2zxAunqxJ7yUiTvmQt84P++3W7ZM7Z9bUr27yaHTwWjVvuy4MMuyjdoUUApFl8Bp3v/ryeWaHaGQYk1fXT33RSPNdim6HcgnFLNlHDARDHxskM9+ZAoIBAQDB0zMwHafLmAd2hFZa0aI+pr+KjJGiW9zwwjSTy0UXSCgueIYTDERRcMfZ00yPNhZ5nRUOFuSDIznBr8lRqAFWv9k64sPj7uIRTXo+I3u1UpRLKjFieiITaRq4aVXI52LcbYaIvWz0A1EfBdxEO8f4pNZ8tp90GF2T/cayuTda6E/r0/lp8jaAtEWWjwuhOdqhHCNwD6PvhZmTCUckfMSZtXc/gEDrHgxRv4zUcamdMnBzredwIIZ/8sPHuyRBl+WhUIw/aDcFnmuHzKt65/5aR/iopVMu0uKZi8cHF/WgEgt80W3q3OirtytPI7LHn4ALvPLLZgfLWs+mOg1ALDYBAoIBAB1Atzn+gwVJK2VTiQovJOLIuU0GWkRqm4FQpp8gDp1VzSoMFcvup3+lULZ3s9KKJysMUfOejqlvFXs7AWUfhDTTfKmiZc1LxfgfzDZcuQWDMAto3p7CxV1T5wVreDXQu1wZDPvzBwWDYjQfB5TH1T+ZAnnwlD/vy6eOM3kmr6eyRxh0Ife7ee7UAoz8yIyfMhZRcEEMY3GBlqz4W1AJxvR41gP8gWzXwFWcGz5VUpj6Q+r0K8cTahoN5g3YE0n4vdWbfHGDsbPct2+S67JgTOi7Qkdb5DNdZKnOIsq1Gi1uTebp9FVxil3xlVVm1glrEq12Wm4gWYrmkZZCMSGlFvECggEAcvRk9pOQEiL/wh3o7YJJnKjfDzgho86h8jTsY/954b4M/srCkgeDeV3PWfSFAqcMm2I7u5h+PPymY6ZzWzeuW5n7J36YudXTRHnUF4iJ9Ved1hqXIZXYIfUDQP5QP5BkROG8mdrnBK327dRW+C0Qg/qXr23MklllHsGzmApbt1HzHKYi1eAuzRSd9RavyhZ7AXSj2/GaxBNTqy4kgJJzM8q5h/L0Db5Lhix6RQGInE/u+9zXV9wiiT4dOZdXgIOrUIpqM60GfRGhKvCLf6CabUckRjmPZUTz2idZim5+Ykpxf7ziWRpd8IH5cL12agjCM7QDt/iyhLw+TZM+iqHuAQKCAQAoUpbZnUPIaDwxrio0iYPMKYnXmn3PiK3MF5eYyeVmTuJe/MhaYPxgK5YGUKAChF1OuIuTQfToApug09IomKTqOLpikxewKIqwCoPFbu2XAOo/c4nDG1RPREfJVety8Ikosx9Od6+/pIzEkW5GkCGViSLEj/9jHn+Aon+3gEa5krTpP44HkCpnyDu0RfCr1CgcQZlnuOX+tHqGsaH3sXuipj5ZvIKANrsAXh7sDD0VyguCVTSk3Vhu773YPlofp2rUaHiGS7xQH9Syz+JOGaBOnZgfMlqdpzyAL8njZ1BHcqjo75K6vME37idfiU/PZBIvKAwwR6f4jJOcss7Z6jQa
+      - PARTNER_PRIVATE_SIGNING_KEY=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
+      - API_KEY=90d80c05348a41eaa09ec03bb202403a
+      - KID_KET=19f84b5655f04e25a99b09f1ee2fac78
+    ports:
+      - "5000:5000"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+
+
+  api-product-list:
+    build: ./api-product-list/
+    restart: always
+    container_name: api-product-list
+    environment:
+      - NODE_ENV=development
+      - PORT=20100
+
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASSWORD=Jdb@2024
+      - MYSQL_DATABASE=db_landing_dev
+      - DB_PORT=3306
+
+      - REDIS_HOST=redis-container
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+
+      - DEFAULT_PARTNER_CODE=DEFAULT
+      - JDB_SECRET_KEY=mT3hOg8ItgIqI8Reu2D1nseQ5AJ9VMPoyBHWTqYVr3g=
+
+      - VALID_API_KEYS=key1,key2,key3
+
+      - COREBANKING_BASE_URL=http://172.21.26.94:5962
+      - COREBANKING_USER_ID=Jdb2026
+      - COREBANKING_PASSWORD=Jdb@CardService2026
+
+      - API_CARD_LIST_URL=http://172.21.26.97:8096
+
+      - CMS_API_URL=http://10.21.27.22:19820
+
+      - OPEN_ACCOUNT_BASE_URL=http://172.21.26.94:3004/api/uat
+      - OPEN_ACCOUNT_USER_ID=OACOnline
+      - OPEN_ACCOUNT_PASSWORD=NBH7AFQOG4P3JV6PHVWVYFO41A0QXU41WHFESKNL63E58F6I5XD61L8OMIY8AVQDL5HBGUANZB16VVN78DWZFCQJZEN2FDYR9WGO
+
+    ports:
+      - "20100:20100"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - redis-container
+
+
+
+
+  api-upload:
+    build: ./api-upload/
+    restart: always
+    container_name: api-upload
+    environment:
+      - NODE_ENV=development
+      - PORT=8092
+      - SFTP_HOST=172.21.57.20
+      - SFTP_PORT=22
+      - SFTP_USERNAME=Finexus01
+      - SFTP_PASSWORD=sFTPfine@2017
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+
+      - KAFKA_TOPIC=test
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=bills-consumer-group
+      - KAFKA_CLIENTID=sample-kafka-client
+
+      - KAFKA_TOPIC_UPLOAD=upload_file
+      - KAFKA_BROKERS_UPLOAD=kafka:19092
+      - KAFKA_GROUPID_UPLOAD=upload-consumer-group
+      - KAFKA_CLIENTID_UPLOAD=upload-kafka-client
+    volumes:
+      - ./app/uploadSignature:/app/uploadSignature
+      - ./app/uploads:/app/uploads
+      - ./app/image:/app/image
+    ports:
+      - "8092:8092"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - node-file-server
+      - kafka
+  
+
+      
+  api-upload-document:
+    build: ./api-upload-document/
+    restart: always
+    container_name: api-upload-document
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+
+      - SECERT_KEY_ENCTYP=jdb@6LeGaEsp@bopbyk8cntt
+      - SITE_KEY=6LeGaEspAAAAACK1-fbbLkk_e3Ol7-zAfbFHQRLF
+      - SECERT_KEY=6LeGaEspAAAAANVz4iblum1jantSpquTuwqhru5t
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+
+      - API_BASE_URL=http://172.21.26.94:3004/api/uat/OpenAccount
+      - API_USER_ID=OACOnline
+      - API_PASSWORD=NBH7AFQOG4P3JV6PHVWVYFO41A0QXU41WHFESKNL63E58F6I5XD61L8OMIY8AVQDL5HBGUANZB16VVN78DWZFCQJZEN2FDYR9WGO
+
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+
+      - KEY_ENCRYPTED=1qazZAQ!@apiCounterService
+
+      - KAFKA_TOPIC=upload-document
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=upload-document-consumer-group
+      - KAFKA_CLIENTID=upload-document-client
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - kafka
+
+  api-register-cus-grg:
+    build: ./api-register-cus-grg/
+    restart: always
+    container_name: api-register-cus-grg
+    environment:
+      - KAFKA_TOPIC=Registry-Face-Cif-Topic
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=Registry-Face-Cif-consumer-group
+      - KAFKA_CLIENTID=Registry-Face-Cif-client
+
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+      - PORT=8093
+
+      #GRG
+      - API_GRG_BASE_URL=https://bioservice.jdbbank.com.la:12042/feel_apis
+      - PASSWORD_GER=JDBjdb666
+      - USERNAME_GER=android
+      - NODE_ENV=production
+
+      # Encrypted
+      - KEY_ENCRYPTED=1qazZAQ!@apiCounterService
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - kafka
+
+  #api-register-cus-grg-ts
+  api-register-cus-grg-ts:
+    build: ./api-register-cus-grg-ts/
+    restart: always
+    container_name: api-register-cus-grg-ts
+    environment:
+      - KAFKA_TOPIC=Registry-Face-Cif-Topic-ts
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=Registry-Face-Cif-consumer-group-ts
+      - KAFKA_CLIENTID=Registry-Face-Cif-client-ts
+
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=indee_user
+      - PG_PASSWORD=indee_pass
+      - PG_DATABASE=indee_database
+
+      - API_SECERT_KEY=Bopby-k8cntt-2022
+      - PORT=8093
+
+      #GRG
+      - API_GRG_BASE_URL=https://bioservice.jdbbank.com.la:12055/feel_apis
+      - PASSWORD_GER=JDBjdb666
+      - USERNAME_GER=android
+      - NODE_ENV=production
+
+      # Encrypted
+      - KEY_ENCRYPTED=1qazZAQ!@virtual-open-way
+
+      - KAFKA_TOPIC_LOG=save_log_system-ts
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group-ts
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client-ts
+    networks:
+      - dev-landing-network
+    depends_on:
+      - postgres
+      - kafka
+
+
+  jdb_webhook_service:
+    build: ./jdb_webhook_service
+    container_name: jdb_webhook_service
+    restart: always
+    ports:
+      - "8283:8283"
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: indee_database
+      DB_USER: indee_user
+      DB_PASSWORD: indee_pass
+      DB_POOL_MIN: 5
+      DB_POOL_MAX: 20
+
+      # Redis
+      REDIS_HOST: redis-container
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+
+      # Security
+      JWT_SECRET: bopby-dev-jwt-secret-2026-very-secure-64chars
+      ENCRYPTION_KEY: abcdefghijklmnopqrstuvwx1234567890
+      HMAC_ALGORITHM: sha256
+
+      # API
+      NODE_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: 8283
+
+      # Webhook
+      WEBHOOK_TIMEOUT: 30
+      WEBHOOK_MAX_RETRIES: 5
+      WEBHOOK_RETRY_BACKOFF_MS: 1000
+      WEBHOOK_RETRY_MAX_AGE_HOURS: 24
+      WEBHOOK_MAX_PAYLOAD_SIZE: 1mb
+
+      # Rate limit
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+
+      # Logging
+      LOG_LEVEL: info
+      LOG_FILE_PATH: ./logs
+
+      # Event Bus
+      EVENT_BUS_PROVIDER: kafka
+      KAFKA_BROKERS: kafka:19092
+
+    depends_on:
+      - postgres
+      - redis-container
+      - kafka
+    networks:
+      - dev-landing-network
+
+
+  
+
+  api-webhook:
+    build: ./api-webhook/
+    restart: always
+    container_name: api-webhook
+    environment:
+      - KAFKA_TOPIC=webhook-topic
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=webhook-group
+      - KAFKA_CLIENTID=webhook-client
+
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+      - PORT=8093
+
+      # Encrypted
+      - KEY_ENCRYPTED=1qazZAQ!@api_partner
+      - WEBHOOK_SECRET_KEY=webhook@secret@jdbbank@2025
+      - API_SECERT_KEY=jdb@6LeGaEsp@bopbyk8cntt
+
+      - KAFKA_TOPIC_LOG=save_log_system
+      - KAFKA_BROKERS_LOG=kafka:19092
+      - KAFKA_GROUPID_LOG=save-log-consumer-group
+      - KAFKA_CLIENTID_LOG=save-log-kafka-client
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - kafka
+
+  event-receiver-api:
+    build: ./event-receiver-api/
+    restart: always
+    container_name: event-receiver-api
+    environment:
+      - KAFKA_BROKERS=kafka:19092
+      - PORT=8282
+      - HOST=0.0.0.0
+      - WEBHOOK_SECRET=a7f8d9c3e2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a
+      - ALLOWED_IPS=0.0.0.0/0
+      - LOG_LEVEL=info
+      - LOG_DIR=./logs
+    ports:
+      - "8282:8282"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - kafka
+
+  node-api-virtual:
+    build: ./api-virtual-cards/
+    restart: always
+    container_name: node-api-virtual
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - SECRET_KEY=Bopby-k8cntt-2022
+      - KEY_ENCRYPTED=1qazZAQ!
+      - KEY_ENCRYPTED_DATA=1qazZAQ!_apiVirtual
+      - PORT=8084
+    ports:
+      - "8084:8084"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+
+  node-api-virtual-partner:
+    build: ./api-virtual-card-partner/
+    restart: always
+    container_name: node-api-virtual-partner
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - SECRET_KEY=Bopby-k8cntt-2022
+      - KEY_ENCRYPTED=1qazZAQ!
+      - KEY_ENCRYPTED_DATA=1qazZAQ!_apiVirtual
+      - TOKEN_KEY_VERRIFY=1QAZzaq!@virtual@partner@api
+      - SECERT_KEY_ENCTYP=jdb@6LeGaEsp@bopbyk8cntt
+      - JDB_ENCRYTION_PRIVATE_KEY=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
+      - JDB_ENCRYPTION_PUBLIC_KEY=MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAo+Nyd66dZTUmrKCNSpMW51JRBGQXnH3OzsihSdIWVGeawO4LDl4qJK6g4icuNSspe6ZEsGyZY0sCZN4/7EaQRqYD2uEkOLWbVGcLZUyWwiYD4CN7MfykbbYFxfpEJpYH3U/evvVVh0QTWWDEH/6++yA07pqZkEdVGBzKUtnf9Xd5V8laTN4fqSxy9AvK2wOoeG+x/wqk41LGIZFUmONZ3qHCYkuA1H4Gkyxg7NIFq/26z8TCqz/Lbr+4eLN434l0DVeC2QUtbQpyVQebgAJ44TJm9qFP2i2wQ7fdPNDr5prQGTgXb6hi3UuZiPaKWuyy/4/yxMZRbt4bLgIWJHoXP9EMu8OmZhMV/zbohmrsmCBbnQvUfgz/DrtREDNZbeueW28VIuTig4mLY2GurozKsKnbBXtMApahwpmfO3lqpwon6Lmh4cABZfmQBZbxe0vhBQGwqbAwxEASDNKurGi2pUtv/RrCQXgws9ROOz59peTj1CdJt0tGvlOMvXtR79Qz7FEnPb9YXrz5z2dSgo1L+kLdFHSE1YYvVK1hivlKkaPoMYFv9V/c7bgjQUlCq0DYb1ptiZbooWgkhXq4zjFMPK5pW7Tb698qgWdtVRyEqgP0eRIWN2vufBvtsEQYVumwAYmQKwxalAT66BMllw+gEhTqypG8gQTITQuJpMMxMskCAwEAAQ==
+      - JDB_SIGNING_PRIVATE_KEY=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
+      - JDB_SIGNING_PUBLIC_KEY=MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAngwdNrpCzy3QyrteYFepRZ2lPhkwoKr//tBD19qANqg0A3poNn+L+tk/No0nZd4xHnhbH0hmsoCVkjpBTdu3IxgeUooBJbzewgNXET4pLv6QoZQ0B1hfHG1bwB7k81DFeg9T00AnQnQnsiPXIfbI/5eTN/1tywIntT7hV+LgFmQJ3M/zD9WMXo3YRuGufOGkwoykTwUX88EVNFUIzMNKIkYTgsuFz1Vz1t9cBHgR2FnMd8oAJb6fC4Gvt4x2heJfpXbhyIbbQQ0L/S9iZRPwRAAZcLQ2WfEPSxoxXiRXSnFtWyv4sovG6euiHpvY2GwRuoCZb6kKARD7Hqt/W7JezdaFvcxPrH1YBnhtsyZEAR3v3Gj9M/cMoyv6tmJalaZQpjJibcbbo9QY34LwOz3bEYDBQT9lD864aMlkYijVM+wRpBLYJcGNyzfLNUcL8d2DEnLgnhSLcFU99G0BR87arRurCvnfZqcFtc4yH53/2Nhs1MaAVtioCoquS80RsSZh69NxGcLHuOXOyhrKs0tVM1w1uEtWDNxDXATM4iRcmoSz3ZOvcs2y6YSGvhtI7kqBMG4aT7BbEpv1eusnWxJBTNSUfRvi6tRvf0mN+t2eyAoe9fP5fuhxEgnIOl196acZTsd0v9SIaIHIWTfL7cDUfI2Diufv9SkhjSAW/VRWwRUCAwEAAQ==
+
+      - PARTNER_PRIVATE_ENCRYPTION_KEY=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
+      - PARTNER_PUBLIC_ENCRYPTION_KEY=MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEApk0I5RQqLLKl/23OzemXw9BgO7e0x/oVpAcv3BwnK5K+WfoyAtmcRkqtCsUXMPCafFonbaMlnar5b8UAUdg4tsBIJGlHLkNMIlth8dQ4s9A4ljsVvoTibxgXzifOPRg3lffx51VLy3WkL1XFsCm0sQ71tOvY/ti6fEi0RJvXnvUi5K+7baIyvEgcBN835jtkwmF1J1HRU1jh1qQrX920rdQTgKc8Cw+9ub3+Y+P+ZZCQgGTFq5YFC30o7S2WvR1JhQMbd4Zes0CMMy73GVrMg2BCqOn1i73/IRF2O7IOF+7Qv/KELn5C2eOrVL0f2dsLqihU6STG9ZK+ULzRngF7ht9eeqsJdVD4/gdFwTDA3IX9MtQscROc2miZLFY48lC9UCdd3GGRATdvhbaRfFEOWeIgVNm00Vx+24QfpFpT5bROB4f0W7wk0tQwoq0rHYTBErlQoUvuNNzR5h1w/xgzECahe22dF6/pwdSsIfkqgemZnnnQMPQiw2Ac3EGjx2LV66kif5/Gudr25jUJShPe0ATik6X4PzA+3kqK8TqfYrZC8LdTdnYtaUZRVEtLNXzPtmoilZ24ivGEcthSbA5MSUwjt5jLobV2h7RHZcQmCyVvYhEYa8HGH7VcdE3zrqGKTEGDZWF0/7suRkTF1fFTUXGdL7N8WI1HQAb5sY0e/qMCAwEAAQ==
+      - PARTNER_PRIVATE_SIGNING_KEY=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
+      - PARTNER_PUBLIC_SIGNING_KEY=MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA0xoit3X68wVGRT3y24WuTd7SXFbHcW/gkQ2xgQL0yD/ycIIHp6NLzd3b9v1SvAe6rXl39lybgVAkak/mBWh/lj9GD+MMZPOKNATmSqepPU5LbOmtbFzUAO+bLGma00lMq8bjys0fpZNC8Cxt+lNapQREKsbmr0kJGcf5bDhi/1i355tg6Wqkqw/LO4K9S9yfJNXE3I5U5z+wdN41Z/NOsBT+5CZM0A7yA+cBYH3AMjCAmRoXYDJMIT0Fd+CiAQTNBFH4/kKCzjQnp4MZA/C3EN4Mt21MuMmBQiFO+prvefAb8Nbe7zTGUAZhKOc1RL+XKsZbUcy+S3pRVJ8I1gP8X2xEBmITKSgQpGN6Nw2jOE8r7feVyT8gqmozRPveep5653tDDT8lajax7V7S8+jyYJ/ta8kYn4vPULDUFCeTA86jOLCOrGVab8fRlJvKfk0I7fqmdNs2akHeFclVlqp/vZ3Z71QVsrRA8No2UcjYQVVEsaNHi/RjOUGPH5PUjv2wZ36fmsaHCnmB5wxBw9mCKLoxq+Mg1w7V1s1W1iFU/KvIuii26nhRnGtlRnc5qHecyPRGjo3i+YjZdon1mtaPCSBSYU4MTG/Oo2rvz0VTMHZJsdO2R1uu4BsZx+2iB8y6dDCWI5SkkiT0olUv5DUwOsmUY26ExJ4d9VUKX56E+B8CAwEAAQ==
+      - PORT=8085
+
+    ports:
+      - "8085:8085"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+
+  #api-virtual-open-way-ts
+  api-virtual-open-way-ts:
+    build: ./api-virtual-open-way-ts
+    container_name: api-virtual-open-way-ts
+    restart: always
+    ports:
+      - "8096:8096"
+    environment:
+      PORT: 8096
+      API_KEY: secure-key-123
+      CLIENTS_API_BASE_URL: http://10.21.27.22:19810
+      WAY4_API_URL_DEV: http://10.21.27.21:17096/api/rest/payment-methods/v1
+      WAY4_API_URL_2: http://10.21.27.22:19820/payment-methods/v1
+      WAY4_API_URL: http://10.21.27.22:19820/payment-methods/v1
+      WAY4_API_URL_HASH: http://10.21.27.21:17096/api/rest/payment-methods/v1
+      API_URL: http://10.21.27.22:19820/payment-methods/v1/
+      API_PIN_RESET: http://10.21.27.12:19830/pin/v1
+      CORE_BANK_URL: http://172.21.22.203:3016/api/pro/OpenAccount/v1/
+      CORE_BANK_USER: OACOnline
+      CORE_BANK_PASS: d6RA5nhJLoZLXhoa2Pv8oVc9azwjwl5Td2FkX01fvhA3ShxgsNmBYz71k2MZxE2J6UIjvYwTAJ2JEOeNbwf7mdhrPaxaZaFV7DMv
+      VALID_API_KEY: yourApiKeyHere
+      MYSQL_HOST: mysql
+      MYSQL_USER: mybio
+      MYSQL_PASSWORD: Jdb@2024
+      MYSQL_DATABASE: db_landing_dev
+      SECRET_KEY: Bopby-k8cntt-2022
+      ENCRYPTION_KEY: 1qazZAQ!@virtual-open-way
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: indee_user
+      PG_PASSWORD: indee_pass
+      PG_DATABASE: indee_database
+      KAFKA_TOPIC_LOG: save_log_system-ts
+      KAFKA_BROKERS_LOG: kafka:19092
+      KAFKA_GROUPID_LOG: save-log-consumer-group-ts
+      KAFKA_CLIENTID_LOG: save-log-kafka-client-ts
+      KAFKA_TOPIC: test
+      KAFKA_BROKERS: kafka:19092
+      KAFKA_GROUPID: bills-consumer-group
+      KAFKA_CLIENTID: sample-kafka-client
+      MAIL_NAME: card.jdb.register@gmail.com
+      PASS_MAIL: vusc puxu quub wpux
+      SERVICE: gmail
+      KAFKA_TOPIC_WEB_HOOK_STATUS: webhook-topic
+      KAFKA_BROKERS_WEB_HOOK_STATUS: kafka:19092
+      KAFKA_GROUPID_WEB_HOOK_STATUS: webhook-group
+      KAFKA_CLIENTID_WEB_HOOK_STATUS: webhook-client
+
+      KAFKA_TOPIC_ADD_NEW_CUSTOMER_GRG: Registry-Face-Cif-Topic-ts
+      KAFKA_BROKERS_ADD_NEW_CUSTOMER_GRG: kafka:19092
+      KAFKA_GROUPID_ADD_NEW_CUSTOMER_GRG: Registry-Face-Cif-consumer-group-ts
+      KAFKA_CLIENTID_ADD_NEW_CUSTOMER_GRG: Registry-Face-Cif-client-ts
+
+      API_BIOMETRIC: https://bioservice.jdbbank.com.la:12055/feel_apis
+      BIOMETRIC_USERNAME: android
+      BIOMETRIC_PASSWORD: JDBjdb666
+
+      SECRET_KEY_BIO: 1qazZAQ!@biometric
+
+      OPENWAY_SECRET_KEY: mT3hOg8ItgIqI8Reu2D1nseQ5AJ9VMPoyBHWTqYVr3g=
+      OPENWAY_API_URL: http://10.21.27.21:17096/api/rest/
+      OPENWAY_TIMEOUT: 30000
+      JWT_SECRET: JDB_VirtualCard_JWT_SecureToken_2026_mT3hOg8ItgIqI8Reu2D1nse
+
+      CMS_PAYMENT_METHODS_URL: http://10.21.27.22:19820/payment-methods/v1
+      CMS_PAYMENT_METHODS_TIMEOUT: 10000
+      BIOMETRIC_AMOUNT_THRESHOLD: 500
+      BIOMETRIC_SYSTEM_PEPPER: REPLACE_WITH_RANDOM_256BIT_SECRET_NEVER_COMMIT_THIS
+
+      PRODUCT_FEES_API_URL: http://10.21.27.21:20100
+      BRANCHES_API_URL: http://10.21.27.22:19840
+
+      OUTGOING_ZPK: 9CE774C2B8389A314E600971FBA31205
+
+      KAFKA_TOPIC_SQL: sql_script_topic
+      KAFKA_BROKERS_SQL: localhost:9092
+      KAFKA_GROUPID_SQL: sql-consumer-group
+      KAFKA_CLIENTID_SQL: sql-producer-client
+
+      # Database Pool
+      DB_POOL_MAX: 50
+
+      # Redis (Optional)
+      REDIS_HOST: redis-container
+      REDIS_PORT: 6379
+
+      # ─── Reset PIN Debit Card Module ─────────────────────────────────────────────
+      # Redis distributed lock TTL (seconds)
+      REPIN_LOCK_TTL_SECONDS: 300
+
+      # Quote expiry (minutes) — customer must confirm within this window
+      REPIN_QUOTE_TTL_MINUTES: 10
+
+      # Retry configuration
+      REPIN_MAX_RETRIES: 3
+      REPIN_RETRY_INTERVAL_MS: 30000
+      REPIN_RETRY_BASE_DELAY_SEC: 30
+      REPIN_RETRY_BATCH_SIZE: 5
+
+      # Kafka topic for Reset PIN events
+      REPIN_KAFKA_TOPIC: repin.events
+
+      # Operations team email — receives FAILED/EXHAUSTED alerts
+      REPIN_OPS_EMAIL: ops-team@jdbbank.com
+
+      # SMTP (for Reset PIN email notifications)
+      # Reuse existing MAIL_NAME / PASS_MAIL if same Gmail account
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_SECURE: false
+      SMTP_USER: card.jdb.register@gmail.com
+      SMTP_PASS: vusc puxu quub wpux
+      SMTP_FROM: card.jdb.register@gmail.com
+
+
+      OPEN_WAY_FEE_API_URL: http://10.21.27.21:17096
+      OPEN_WAY_VPOS_VISA: VPOS0005
+      OPEN_WAY_VPOS_UPI: VPOS0008
+      OPEN_WAY_VPOS_MC: VPOS0010
+      OPEN_WAY_FEE_DEST_MEMBER: JDB
+
+      GL_INQUIRY_URL: http://172.21.26.94:3008/api/uat/card
+
+    depends_on:
+      - mysql
+      - postgres
+      - kafka
+      - redis-container
+    networks:
+      - dev-landing-network
+
+
+  #service-loging-ts
+  service-loging-ts:
+    build: ./service-loging-ts
+    container_name: service_loging_ts
+    restart: always
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: indee_user
+      PG_PASSWORD: indee_pass
+      PG_DATABASE: indee_database
+      KAFKA_TOPIC_LOG: save_log_system-ts
+      KAFKA_BROKERS_LOG: kafka:19092
+      KAFKA_GROUPID_LOG: save-log-consumer-group-ts
+      KAFKA_CLIENTID_LOG: save-log-kafka-client-ts
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - dev-landing-network
+  
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: indee_user
+      POSTGRES_PASSWORD: indee_pass
+      POSTGRES_DB: indee_database
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dev-landing-network
+
+  # --- Loan Management System ---------------------------------------------------------------
+  # Reads its secrets from the repo-root .env (same keys as .env.example / docker-compose.yml),
+  # so one .env drives both files. lms-* containers talk to each other over dev-landing-network;
+  # only the three host ports below are published.
+  lms-mysql:
+    image: mysql:8.4
+    container_name: lms-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_NAME:-loan_management}
+      MYSQL_USER: ${DB_USER:-loan_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "${LMS_MYSQL_HOST_PORT:-3309}:3306"
+    volumes:
+      - lms_mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping --host=127.0.0.1 --user=root --password="$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks:
+      - dev-landing-network
+
+  # One-shot, not part of `up`. It applies server/src/migrations to the lms database and exits,
+  # because the schema of record is the migration set, never DB_SYNCHRONIZE:
+  #   sudo docker-compose -f ./docker-dev-compose.yaml run --rm lms-db-migrate
+  # Run it once after lms-mysql is healthy and again with every release that ships a migration.
+  lms-db-migrate:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    # Same image name as lms-backend, so this Dockerfile is built once, not twice.
+    image: lms/backend:dev
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DB_HOST: lms-mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-loan_app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: ${DB_NAME:-loan_management}
+      DB_SYNCHRONIZE: "false"
+    entrypoint: ["npm"]
+    command: ["run", "db:migrate", "--workspace", "server"]
+    depends_on:
+      - lms-mysql
+    networks:
+      - dev-landing-network
+
+  lms-backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: lms/backend:dev
+    container_name: lms-backend
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DB_HOST: lms-mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-loan_app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: ${DB_NAME:-loan_management}
+      DB_SYNCHRONIZE: "false"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:8098}
+      NOTIFY_ENABLED: ${NOTIFY_ENABLED:-true}
+      # kafka here is the estate broker below; the port is that container's INTERNAL listener.
+      NOTIFY_TRANSPORT: kafka
+      NOTIFY_DEFAULT_LOCALE: ${NOTIFY_DEFAULT_LOCALE:-lo}
+      NOTIFY_SECRET_KEY: ${NOTIFY_SECRET_KEY:?Set NOTIFY_SECRET_KEY in .env}
+      KAFKA_BROKERS: kafka:19092
+      MAILER_BASE_URL: http://lms-mailer:4100
+      MAILER_API_KEY: ${MAILER_API_KEY:?Set MAILER_API_KEY in .env}
+    ports:
+      - "${LMS_BACKEND_HOST_PORT:-4001}:4000"
+    networks:
+      dev-landing-network:
+        aliases:
+          # lms-frontend's nginx.conf proxies /api to http://backend:4000, so the gateway needs
+          # to resolve that name on this network.
+          - backend
+    depends_on:
+      - lms-mysql
+      - lms-mailer
+      - kafka
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  lms-mailer:
+    build:
+      context: .
+      dockerfile: mailer/Dockerfile
+    container_name: lms-mailer
+    restart: unless-stopped
+    environment:
+      MAILER_PORT: 4100
+      MAILER_API_KEY: ${MAILER_API_KEY:?Set MAILER_API_KEY in .env}
+      KAFKA_CONSUMER_ENABLED: "true"
+      KAFKA_BROKERS: kafka:19092
+      KAFKA_CLIENT_ID: loan-mailer
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-loan.notification}
+      KAFKA_DLQ_TOPIC: ${KAFKA_DLQ_TOPIC:-loan.notification.dlq}
+      KAFKA_CONSUMER_GROUP: mailer-send
+      # Empty SMTP_HOST is deliberate: messages are rendered and logged, never sent. Fill these
+      # in .env when the branch really wants email; leave them empty while testing.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-Loan Management System <no-reply@loanms.local>}
+      MAILER_SEND_ATTEMPTS: ${MAILER_SEND_ATTEMPTS:-3}
+    expose:
+      - "4100"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - kafka
+
+  lms-frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      # web/nginx.conf is the API-proxying one; docker-compose.prod.yml passes nginx.prod.conf
+      # instead because there Kong is the only edge.
+      args:
+        WEB_NGINX_CONF: web/nginx.conf
+    container_name: lms-frontend
+    restart: unless-stopped
+    ports:
+      - "${LMS_FRONTEND_HOST_PORT:-8098}:80"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - lms-backend
+
+  api-lmps:
+    build: ./api-lmps/
+    restart: always
+    container_name: api-lmps
+    environment:
+      - PORT=9033
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - API_SECERT_KEY=jdb@6LeGaEsp@LMPS
+      - SECERT_KEY_ENCTYP=jdb@6LeGaEsp@LMPS
+    ports:
+      - "9033:9033"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+
+
+  node-mail:
+    build: ./mailservice/
+    restart: always
+    container_name: node-mail
+    environment:
+      MAIL_NAME: card.jdb.register@gmail.com
+      PASS_MAIL: vusc puxu quub wpux
+      SERVICE: gmail
+      REGISTERLINK_URL: https://bioservice.jdbbank.com.la:12042/RegisterCard?key=
+      SECRET_KEY: Bopby-k8cntt-2022
+
+      KAFKA_TOPIC: test
+      KAFKA_BROKERS: kafka:19092
+      KAFKA_GROUPID: bills-consumer-group
+      KAFKA_CLIENTID: sample-kafka-client
+    networks:
+      - dev-landing-network
+    depends_on:
+      - kafka
+
+  node-file-server:
+    build: ./file-server/
+    restart: always
+    container_name: node-file-server
+    environment:
+      - KAFKA_TOPIC=upload_file
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=upload-consumer-group
+      - KAFKA_CLIENTID=upload-kafka-client
+      - FILE_UPLOAD_DIR=/app/uploadSignature
+      - SFTP_HOST=172.21.57.20
+      - SFTP_PORT=22
+      - SFTP_USERNAME=Finexus01
+      - SFTP_PASSWORD=sFTPfine@2017
+    volumes:
+      - ./app/uploadSignature:/app/uploadSignature
+      - ./app/uploads:/app/uploads
+      - ./app/image:/app/image
+    networks:
+      - dev-landing-network
+    depends_on:
+      - kafka
+
+  log-transaction:
+    build: ./log-transaction/
+    restart: always
+    container_name: log-transaction
+    environment:
+      - KAFKA_TOPIC=save_log_system
+      - KAFKA_BROKERS=kafka:19092
+      - KAFKA_GROUPID=save-log-consumer-group
+      - KAFKA_CLIENTID=save-log-kafka-client
+
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=mybio
+      - MYSQL_PASS=Jdb@2024
+      - MYSQL_DB=db_landing_dev
+      - MYSQL_PORT=3306
+      - SECRET_KEY=Bopby-k8cntt-2022
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+      - kafka
+
+  redis-container:
+    image: docker.io/redis:7.2.3
+    container_name: redis-container
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data:/data # Mount a volume for Redis data persistence
+    networks:
+      - dev-landing-network
+
+  mysql:
+    image: mysql:8.2.0
+    restart: always
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db_landing_dev
+      MYSQL_USER: mybio
+      MYSQL_PASSWORD: Jdb@2024
+      TZ: Asia/Bangkok
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d  # Optional: if you're setting default-time-zone
+    ports:
+      - "3306:3306"
+    networks:
+      - dev-landing-network
+
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    container_name: phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    ports:
+      - "8080:80"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - mysql
+
+
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    restart: always
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_SERVERS: zookeeper:2888:3888
+    networks:
+      - dev-landing-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    restart: always
+    container_name: kafka
+    hostname: 'kafka.io'
+    ports:
+      - "9092:9092"
+    networks:
+      - dev-landing-network
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka.io
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://${DOCKER_HOST_IP:-172.21.26.83}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,DOCKER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_MESSAGE_MAX_BYTES: 5242880
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 5242880
+      KAFKA_FETCH_MESSAGE_MAX_BYTES: 5242880
+volumes:
+  mysql-data:
+  postgres_data:
+  # Named lms_mysql_data, not loan_mysql_data: this directory holds both compose files, so the
+  # project name is the same and a shared volume name would put two MySQL servers on one datadir.
+  lms_mysql_data:
+networks:
+  dev-landing-network:
+   driver: bridge

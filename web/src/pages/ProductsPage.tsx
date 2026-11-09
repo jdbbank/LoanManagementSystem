@@ -25,6 +25,8 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import {
+  INTEREST_METHODS,
+  InterestMethod,
   PENALTY_MODES,
   PERIOD_UNITS,
   PenaltyMode,
@@ -32,9 +34,11 @@ import {
   type LoanProduct,
   type PenaltyPolicy,
 } from '../api/types';
+import { describeInterest, interestMethodName } from '../utils/interest';
 import { describePenalty } from '../utils/penalty';
 import { useAuth } from '../auth/AuthContext';
 import { isAdmin } from '../auth/roles';
+import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 import StatusChip from '../components/StatusChip';
 import CustomPagination from '../components/CustomPagination';
@@ -44,6 +48,7 @@ interface ProductForm {
   name: string;
   interestRate: string;
   interestRatePeriod: PeriodUnit;
+  interestMethod: InterestMethod;
   termValue: string;
   termUnit: PeriodUnit;
   description: string;
@@ -53,6 +58,7 @@ interface ProductForm {
   penaltyPeriod: PeriodUnit;
   graceDays: string;
   penaltyCap: string;
+  earlySettlementFeePercent: string;
 }
 
 interface ProductPageData {
@@ -66,6 +72,7 @@ const EMPTY: ProductForm = {
   name: '',
   interestRate: '',
   interestRatePeriod: PeriodUnit.YEAR,
+  interestMethod: InterestMethod.FLAT,
   termValue: '12',
   termUnit: PeriodUnit.MONTH,
   description: '',
@@ -75,6 +82,7 @@ const EMPTY: ProductForm = {
   penaltyPeriod: PeriodUnit.MONTH,
   graceDays: '0',
   penaltyCap: '0',
+  earlySettlementFeePercent: '0',
 };
 
 const productToForm = (p: LoanProduct): ProductForm => ({
@@ -82,6 +90,7 @@ const productToForm = (p: LoanProduct): ProductForm => ({
   name: p.name,
   interestRate: String(p.interestRate),
   interestRatePeriod: p.interestRatePeriod,
+  interestMethod: p.interestMethod ?? InterestMethod.FLAT,
   termValue: String(p.termValue),
   termUnit: p.termUnit,
   description: p.description ?? '',
@@ -91,6 +100,7 @@ const productToForm = (p: LoanProduct): ProductForm => ({
   penaltyPeriod: p.penaltyPolicy?.period ?? PeriodUnit.MONTH,
   graceDays: String(p.penaltyPolicy?.graceDays ?? 0),
   penaltyCap: String(p.penaltyPolicy?.maxPercentOfPrincipal ?? 0),
+  earlySettlementFeePercent: String(p.earlySettlementFeePercent ?? 0),
 });
 
 /** Same shape the server expects for both create and patch. */
@@ -98,6 +108,7 @@ const toPayload = (form: ProductForm) => ({
   name: form.name,
   interestRate: Number(form.interestRate),
   interestRatePeriod: form.interestRatePeriod,
+  interestMethod: form.interestMethod,
   termValue: Number(form.termValue),
   termUnit: form.termUnit,
   description: form.description || undefined,
@@ -109,6 +120,7 @@ const toPayload = (form: ProductForm) => ({
     graceDays: Number(form.graceDays || 0),
     maxPercentOfPrincipal: Number(form.penaltyCap || 0),
   } satisfies PenaltyPolicy,
+  earlySettlementFeePercent: Number(form.earlySettlementFeePercent || 0),
 });
 
 export default function ProductsPage() {
@@ -215,8 +227,10 @@ export default function ProductsPage() {
                   <TableCell>{t('products.code')}</TableCell>
                   <TableCell>{t('products.name')}</TableCell>
                   <TableCell align="right">{t('products.rate')}</TableCell>
+                  <TableCell>{t('products.interestMethod')}</TableCell>
                   <TableCell align="right">{t('products.term')}</TableCell>
                   <TableCell>{t('loanDetail.penalty')}</TableCell>
+                  <TableCell align="right">{t('products.earlySettlementFeePercent')}</TableCell>
                   <TableCell>{t('products.currency')}</TableCell>
                   <TableCell>{t('products.active')}</TableCell>
                   <TableCell align="right">{t('common.actions')}</TableCell>
@@ -230,10 +244,16 @@ export default function ProductsPage() {
                     <TableCell align="right">
                       {t('products.rateDisplay', { rate: p.interestRate, unit: t(`units.${p.interestRatePeriod}`) })}
                     </TableCell>
+                    <TableCell>{interestMethodName(t, p.interestMethod)}</TableCell>
                     <TableCell align="right">
                       {t('products.termDisplay', { value: p.termValue, unit: t(`units.${p.termUnit}`) })}
                     </TableCell>
                     <TableCell>{describePenalty(t, p.penaltyPolicy)}</TableCell>
+                    <TableCell align="right">
+                      {p.earlySettlementFeePercent > 0
+                        ? t('products.earlySettlementFeeValue', { percent: p.earlySettlementFeePercent })
+                        : t('products.earlySettlementFeeNone')}
+                    </TableCell>
                     <TableCell>{p.currency}</TableCell>
                     <TableCell>
                       {admin ? (
@@ -256,11 +276,7 @@ export default function ProductsPage() {
                   </TableRow>
                 ))}
                 {data && data.products.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center">
-                      {t('products.noProducts')}
-                    </TableCell>
-                  </TableRow>
+                  <EmptyState colSpan={10} message={t('products.noProducts')} />
                 )}
               </TableBody>
             </Table>
@@ -326,6 +342,19 @@ export default function ProductsPage() {
                   ))}
                 </TextField>
               </Stack>
+              <TextField
+                select
+                label={t('products.interestMethod')}
+                value={form.interestMethod}
+                onChange={(e) => setField('interestMethod', e.target.value as InterestMethod)}
+                helperText={describeInterest(t, form.interestMethod)}
+              >
+                {INTEREST_METHODS.map((m) => (
+                  <MenuItem key={m} value={m}>
+                    {interestMethodName(t, m)}
+                  </MenuItem>
+                ))}
+              </TextField>
               <Stack direction="row" spacing={2}>
                 <TextField
                   label={`${t('products.termValue')} *`}
@@ -435,6 +464,16 @@ export default function ProductsPage() {
                   </Stack>
                 </>
               )}
+
+              <TextField
+                label={t('products.earlySettlementFeePercent')}
+                type="number"
+                slotProps={{ htmlInput: { step: '0.01', min: '0', max: '100' } }}
+                value={form.earlySettlementFeePercent}
+                onChange={(e) => setField('earlySettlementFeePercent', e.target.value)}
+                helperText={t('products.earlySettlementFeePercentHelper')}
+                fullWidth
+              />
 
               <TextField
                 label={t('products.description')}

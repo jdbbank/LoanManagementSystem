@@ -1,9 +1,10 @@
 {
-  "generatedAt": "2026-10-13 01:25:33",
+  "generatedAt": "2026-10-17 17:43:49",
   "seed": 12345,
   "referenceNow": "2026-10-13T09:30:00.000Z",
   "database": "loan_management",
   "testPasswordPolicyNote": "all seeded users share the password configured in dataset.mjs; it is not written to this file",
+  "passwordRotationNote": "every seeded password is stamped as changed at 2026-10-17T17:43:44.120Z and recorded in user_password_history, so the monthly rotation gate stays armed at its default and still accepts these accounts",
   "testUsers": [
     {
       "username": "test_admin",
@@ -112,11 +113,12 @@
     "credit_ledger": 3,
     "user_avatars": 2,
     "user_avatar_contents": 2,
-    "audit_logs": 364
+    "audit_logs": 364,
+    "user_password_history": 11
   },
   "keptTables": {
-    "system_config": 12,
-    "email_templates": 9
+    "system_config": 33,
+    "email_templates": 26
   },
   "loans": {
     "LN-TST-000001": {

@@ -312,7 +312,7 @@ export default async function suite(ctx) {
     const uNoMail = await makeUser('nomail', { fullName: 'Test Log NoMail' });
     statusCheck(CAT, 'สร้างบัญชีที่ไม่มี email (เส้น warn ของ enqueue): 201', uNoMail.res, 201, { input: uNoMail.name });
     const warnHit = await pollLogFor('[notify] skipped USER_CREATED: recipient has no email address');
-    ok('ไม่มี recipient email: enqueue เขียน WARN แล้วข้ามแถว (业务流程ไม่พัง)', warnHit && (await outboxFor(uNoMail.user.id)).length === 0, {
+    ok('ไม่มี recipient email: enqueue เขียน WARN แล้วข้ามแถว (กระบวนการธุรกิจไม่พัง)', warnHit && (await outboxFor(uNoMail.user.id)).length === 0, {
       input: 'create user with email = NULL',
       expected: 'warn line + no outbox row',
       actual: `warnLine=${warnHit ? 'found' : 'missing'} rows=${(await outboxFor(uNoMail.user.id)).length}`,

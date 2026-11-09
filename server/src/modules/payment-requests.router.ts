@@ -1,32 +1,25 @@
 import { Router, Request, Response } from 'express';
-import { EntityManager } from 'typeorm';
 import { z } from 'zod';
-import { Loan } from '../entities/loan.entity';
-import { CustomerCredit } from '../entities/customer-credit.entity';
 import { FinancialTransaction } from '../entities/financial-transaction.entity';
 import { PaymentAllocation } from '../entities/payment-allocation.entity';
 import { PaymentRequest } from '../entities/payment-request.entity';
-import { SettlementAgreement } from '../entities/settlement-agreement.entity';
-import {
-  ComponentAmounts,
-  ComponentType,
-  LoanStatus,
-  PaymentRequestStatus,
-  TransactionStatus,
-  TransactionType,
-  UserRole,
-} from '../entities/types';
+import { PaymentRequestPurpose, PaymentRequestStatus, UserRole } from '../entities/types';
+import { getDataSource } from '../datasource';
 import { AuthUser, requireAuth, requireRole } from '../middleware/auth';
 import { validateBody } from '../middleware/error';
 import { asyncHandler } from '../utils/async-handler';
-import { badRequest, notFound, unprocessable } from '../utils/errors';
-import { EPS, num, round2 } from '../utils/money';
-import { allocateSequentially, validateAllocationOverride } from '../services/allocation.service';
-import { getBalances } from '../services/loan-balance.service';
+import { notFound, unprocessable } from '../utils/errors';
+import { num, round2 } from '../utils/money';
 import { writeAudit } from '../services/audit.service';
-import { validateSettlementPayment } from '../services/settlement.service';
-import { nextRequestNo, nextTransactionNo } from '../services/reference.service';
-import { getDataSource } from '../datasource';
+import {
+  notifyPaymentRequestRejected,
+  notifyPaymentRequestSubmitted,
+  notifyPaymentRequestVerified,
+} from '../services/notification-events.service';
+import {
+  approvePaymentRequest,
+  createPaymentRequestRecord,
+} from '../services/payment-request.service';
 
 const router = Router();
 router.use(requireAuth);
@@ -36,6 +29,7 @@ const createRequestSchema = z.object({
   cashAmount: z.number().min(0),
   creditToApply: z.number().min(0).optional(),
   settlementAgreementId: z.string().uuid().optional(),
+  purpose: z.nativeEnum(PaymentRequestPurpose).optional(),
   note: z.string().max(1000).optional(),
 });
 
@@ -53,95 +47,6 @@ const approveSchema = z.object({
 const rejectSchema = z.object({
   reason: z.string().min(1, 'Rejection reason is required').max(1000),
 });
-
-export async function createPaymentRequestRecord(
-  em: EntityManager,
-  params: {
-    loanId: string;
-    cashAmount: number;
-    creditApplied: number;
-    settlementAgreementId: string | null;
-    note: string | null;
-    previousRequestId: string | null;
-    user: AuthUser;
-    ip?: string | null;
-    userAgent?: string | null;
-  },
-) {
-  const loan = await em.findOne(Loan, { where: { id: params.loanId } });
-  if (!loan) throw notFound('Loan');
-  if (loan.status !== LoanStatus.ACTIVE) {
-    throw unprocessable(`Loan is ${loan.status} — payments require an ACTIVE loan`);
-  }
-
-  const paymentTotal = round2(params.cashAmount + params.creditApplied);
-  if (paymentTotal <= EPS) throw badRequest('Payment amount must be greater than zero');
-
-  if (params.settlementAgreementId) {
-    const agreement = await em.findOne(SettlementAgreement, {
-      where: { id: params.settlementAgreementId },
-    });
-    validateSettlementPayment(agreement, loan.id, paymentTotal);
-  }
-
-  if (params.creditApplied > EPS) {
-    const credit = await em.findOne(CustomerCredit, {
-      where: { customerId: loan.customerId, currency: 'LAK' },
-    });
-    const available = credit ? num(credit.balance) : 0;
-    if (available + EPS < params.creditApplied) {
-      throw unprocessable(`Insufficient customer credit: available ${available}, requested ${params.creditApplied}`);
-    }
-  }
-
-  const outstanding = getBalances(loan);
-  const proposed = allocateSequentially(paymentTotal, outstanding);
-
-  const request = em.create(PaymentRequest, {
-    requestNo: await nextRequestNo(em),
-    loanId: loan.id,
-    customerId: loan.customerId,
-    cashAmount: round2(params.cashAmount),
-    creditApplied: round2(params.creditApplied),
-    status: PaymentRequestStatus.PENDING,
-    previousRequestId: params.previousRequestId,
-    settlementAgreementId: params.settlementAgreementId,
-    note: params.note,
-    createdBy: params.user.id,
-  });
-  await em.save(PaymentRequest, request);
-
-  // System-proposed sequential allocation snapshot (locked section 7).
-  const allocations: PaymentAllocation[] = [];
-  for (const component of Object.values(ComponentType)) {
-    const row = em.create(PaymentAllocation, {
-      paymentRequestId: request.id,
-      component,
-      proposedAmount: proposed.allocation[component],
-      finalAmount: 0,
-    });
-    await em.save(PaymentAllocation, row);
-    allocations.push(row);
-  }
-
-  await writeAudit(em, {
-    action: params.previousRequestId ? 'PAYMENT_REQUEST_RESUBMITTED' : 'PAYMENT_REQUEST_CREATED',
-    loanId: loan.id,
-    customerId: loan.customerId,
-    userId: params.user.id,
-    amount: paymentTotal,
-    currency: 'LAK',
-    newStatus: PaymentRequestStatus.PENDING,
-    reason: params.note,
-    relatedTransactionId: null,
-    sourceRequestId: request.id,
-    referenceTransactionId: params.previousRequestId,
-    ip: params.ip,
-    userAgent: params.userAgent,
-  });
-
-  return { request, loan, proposed: proposed.allocation, allocations };
-}
 
 router.get(
   '/',
@@ -184,20 +89,30 @@ router.post(
   validateBody(createRequestSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = req.user as AuthUser;
-    const { loanId, cashAmount, creditToApply, settlementAgreementId, note } = req.body;
-    const result = await getDataSource().transaction(async (em) =>
-      createPaymentRequestRecord(em, {
+    const { loanId, cashAmount, creditToApply, settlementAgreementId, purpose, note } = req.body;
+    const result = await getDataSource().transaction(async (em) => {
+      const created = await createPaymentRequestRecord(em, {
         loanId,
         cashAmount,
         creditApplied: creditToApply ?? 0,
         settlementAgreementId: settlementAgreementId ?? null,
+        purpose: purpose ?? PaymentRequestPurpose.PAY_DEBT,
         note: note ?? null,
         previousRequestId: null,
         user,
         ip: req.ip,
         userAgent: req.headers['user-agent'],
-      }),
-    );
+      });
+      await notifyPaymentRequestSubmitted(em, {
+        loanId: created.loan.id,
+        requestNo: created.request.requestNo,
+        amount: round2(num(cashAmount) + num(creditToApply ?? 0)),
+        currency: created.loan.currency,
+        purpose: purpose ?? PaymentRequestPurpose.PAY_DEBT,
+        receivedAt: new Date(),
+      });
+      return created;
+    });
     res.status(201).json({ data: result });
   })
 );
@@ -227,93 +142,29 @@ router.post(
   validateBody(approveSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = req.user as AuthUser;
-    const { overrideAllocation, reason } = req.body;
+    const { overrideAllocation, reason } = req.body as {
+      overrideAllocation?: { PENALTY: number; PAST_INTEREST: number; PAST_PRINCIPAL: number };
+      reason?: string;
+    };
 
     const result = await getDataSource().transaction(async (em) => {
-      const request = await em.findOne(PaymentRequest, {
-        where: { id: req.params.id },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!request) throw notFound('Payment request');
-      if (request.status !== PaymentRequestStatus.PENDING) {
-        throw unprocessable(`Request is already ${request.status}`);
-      }
-      if (request.createdBy === user.id) {
-        throw unprocessable('Maker cannot verify their own payment request (maker-checker separation)');
-      }
-
-      const loan = await em.findOne(Loan, { where: { id: request.loanId }, lock: { mode: 'pessimistic_write' } });
-      if (!loan) throw notFound('Loan');
-      if (loan.status !== LoanStatus.ACTIVE) {
-        throw unprocessable(`Loan is ${loan.status} — cannot approve payment`);
-      }
-
-      const paymentTotal = round2(num(request.cashAmount) + num(request.creditApplied));
-      const outstanding = getBalances(loan);
-      const proposed = allocateSequentially(paymentTotal, outstanding).allocation;
-
-      let allocation: ComponentAmounts = proposed;
-      if (overrideAllocation) {
-        allocation = {
-          PENALTY: num(overrideAllocation.PENALTY),
-          PAST_INTEREST: num(overrideAllocation.PAST_INTEREST),
-          PAST_PRINCIPAL: num(overrideAllocation.PAST_PRINCIPAL),
-        };
-        // HARD validation — reject immediately, no warning mode, no bypass (locked section 7).
-        validateAllocationOverride(allocation, paymentTotal, outstanding);
-      }
-
-      request.status = PaymentRequestStatus.APPROVED;
-      request.approvedBy = user.id;
-      request.approvedAt = new Date();
-      await em.save(PaymentRequest, request);
-
-      const allocations = await em.find(PaymentAllocation, { where: { paymentRequestId: request.id } });
-      for (const row of allocations) {
-        row.finalAmount = allocation[row.component];
-        row.overridden = overrideAllocation !== undefined;
-        await em.save(PaymentAllocation, row);
-      }
-
-      const tx = em.create(FinancialTransaction, {
-        referenceNo: await nextTransactionNo(em),
-        loanId: loan.id,
-        customerId: loan.customerId,
-        transactionType: request.settlementAgreementId
-          ? TransactionType.SETTLEMENT_PAYMENT
-          : TransactionType.PAYMENT,
-        status: TransactionStatus.APPROVED,
-        amount: paymentTotal,
-        currency: 'LAK',
-        componentAmounts: allocation,
-        sourceRequestId: request.id,
-        settlementAgreementId: request.settlementAgreementId,
-        reason: reason ?? `Payment for request ${request.requestNo}`,
-        createdBy: request.createdBy,
-        approvedAt: new Date(),
-      });
-      await em.save(FinancialTransaction, tx);
-
-      await writeAudit(em, {
-        action: 'PAYMENT_REQUEST_APPROVED',
-        transactionId: tx.id,
-        transactionType: TransactionType.PAYMENT,
-        loanId: loan.id,
-        customerId: loan.customerId,
-        userId: user.id,
-        previousStatus: PaymentRequestStatus.PENDING,
-        newStatus: PaymentRequestStatus.APPROVED,
-        amount: paymentTotal,
-        currency: 'LAK',
-        makerUserId: request.createdBy,
-        checkerUserId: user.id,
-        reason: reason ?? null,
-        sourceRequestId: request.id,
+      const approved = await approvePaymentRequest(em, {
+        requestId: req.params.id,
+        user,
+        overrideAllocation,
+        reason,
         ip: req.ip,
         userAgent: req.headers['user-agent'],
       });
-
-      return { request, transaction: tx, allocation, proposed };
+      await notifyPaymentRequestVerified(em, {
+        loanId: approved.request.loanId,
+        requestNo: approved.request.requestNo,
+        amount: num(approved.transaction.amount),
+        currency: approved.transaction.currency,
+        allocation: approved.allocation,
+        makerUserId: approved.request.createdBy,
+      });
+      return approved;
     });
 
     res.json({ data: result });
@@ -364,6 +215,15 @@ router.post(
         userAgent: req.headers['user-agent'],
       });
 
+      await notifyPaymentRequestRejected(em, {
+        loanId: request.loanId,
+        requestNo: request.requestNo,
+        amount: round2(num(request.cashAmount) + num(request.creditApplied)),
+        currency: request.currency,
+        reason,
+        makerUserId: request.createdBy,
+      });
+
       return request;
     });
 
@@ -382,19 +242,29 @@ router.post(
       throw unprocessable('Only rejected requests can be resubmitted');
     }
 
-    const result = await getDataSource().transaction(async (em) =>
-      createPaymentRequestRecord(em, {
+    const result = await getDataSource().transaction(async (em) => {
+      const created = await createPaymentRequestRecord(em, {
         loanId: original.loanId,
         cashAmount: num(original.cashAmount),
         creditApplied: num(original.creditApplied),
         settlementAgreementId: original.settlementAgreementId,
+        purpose: original.purpose,
         note: original.note,
         previousRequestId: original.id,
         user,
         ip: req.ip,
         userAgent: req.headers['user-agent'],
-      }),
-    );
+      });
+      await notifyPaymentRequestSubmitted(em, {
+        loanId: created.loan.id,
+        requestNo: created.request.requestNo,
+        amount: round2(num(original.cashAmount) + num(original.creditApplied)),
+        currency: created.loan.currency,
+        purpose: original.purpose,
+        receivedAt: new Date(),
+      });
+      return created;
+    });
 
     res.status(201).json({ data: result });
   })

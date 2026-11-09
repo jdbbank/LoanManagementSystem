@@ -32,7 +32,11 @@ export class NotificationOutbox {
   @Column({ type: 'varchar', length: 8 })
   locale!: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  /**
+   * Readable for ordinary emails; sealed for the reset types whose subject itself carries the
+   * OTP, which is why this column is TEXT (the sealed form is ~4/3 the plaintext length).
+   */
+  @Column({ type: 'text' })
   subject!: string;
 
   @Column({ type: 'text' })

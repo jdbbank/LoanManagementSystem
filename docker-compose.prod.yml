@@ -1,0 +1,416 @@
+# Production stack. Nothing but Kong is reachable from outside this host.
+#
+# Topology (decided 2026-10-15): Kong 3.x in traditional mode (Postgres-backed) is the only public
+# edge. It routes "/" to the web container and "/api" to the backend, so the web container ships
+# web/nginx.prod.conf (static files only) instead of the dev nginx.conf that proxies /api itself.
+#
+# First start, in order:
+#   cp .env.example .env            # fill in every secret, then keep .env out of git
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+#   ./scripts/gateway/bootstrap.sh  # creates the Kong services, routes and global plugins
+#
+# `up -d` is enough on its own: db-migrate and kong-migrations are ordinary services that run once
+# and exit, and the containers that need them (backend, kong) wait for them to finish successfully.
+# Both are safe to re-run - applied migrations and a bootstrapped Kong schema are no-ops.
+#
+# TLS is one opt-in step away: put the cert+key in the kong-prefixed SSL directory, set
+# KONG_PROXY_LISTEN to include the ssl/http2 listener, and publish KONG_HTTPS_PORT=443.
+# Until then Kong serves its built-in default certificate on 8443.
+
+name: loan-ms-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${LOG_MAX_SIZE:-10m}"
+    max-file: "${LOG_MAX_FILES:-5}"
+
+x-kong-env: &kong-env
+  KONG_DATABASE: postgres
+  KONG_PG_HOST: kong-postgres
+  KONG_PG_PORT: 5432
+  KONG_PG_DATABASE: ${KONG_PG_DB:-kong}
+  KONG_PG_USER: ${KONG_PG_USER:-kong}
+  KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:?Set KONG_PG_PASSWORD in .env}
+  # Logs go to stdout/stderr so the json-file limits below are the only thing that grows on disk.
+  KONG_PROXY_ACCESS_LOG: /dev/stdout
+  KONG_ADMIN_ACCESS_LOG: /dev/stdout
+  KONG_PROXY_ERROR_LOG: /dev/stderr
+  KONG_ADMIN_ERROR_LOG: /dev/stderr
+  KONG_LOG_LEVEL: "${KONG_LOG_LEVEL:-notice}"
+  # Only the proxy ports are published. 8001 is mapped to the host loopback for the gateway
+  # scripts; 8002/8445 (Manager UI) are never published, so the gateway has no public admin face.
+  KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+  KONG_ANONYMOUS_TELEMETRY: "off"
+
+x-backend-env: &backend-env
+  PORT: 4000
+  NODE_ENV: production
+  DB_HOST: mysql
+  DB_PORT: 3306
+  DB_USER: ${DB_USER:-loan_app}
+  DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+  DB_NAME: ${DB_NAME:-loan_management}
+  # The schema of record is server/src/migrations, applied by the db-migrate one-shot.
+  DB_SYNCHRONIZE: "false"
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+  # Demo data must never appear in a production book.
+  SEED_ON_BOOT: "false"
+  # Behind Kong the browser sees the published port; WEB_PUBLIC_URL is what reset/settlement
+  # links inside emails point at, so it has to be the real public origin.
+  WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:?Set WEB_PUBLIC_URL in .env}
+  NOTIFY_ENABLED: ${NOTIFY_ENABLED:-true}
+  NOTIFY_TRANSPORT: kafka
+  NOTIFY_DEFAULT_LOCALE: ${NOTIFY_DEFAULT_LOCALE:-lo}
+  NOTIFY_SECRET_KEY: ${NOTIFY_SECRET_KEY:?Set NOTIFY_SECRET_KEY in .env}
+  NOTIFY_POLL_INTERVAL_MS: ${NOTIFY_POLL_INTERVAL_MS:-5000}
+  NOTIFY_BATCH_SIZE: ${NOTIFY_BATCH_SIZE:-20}
+  NOTIFY_MAX_ATTEMPTS: ${NOTIFY_MAX_ATTEMPTS:-5}
+  NOTIFY_BACKOFF_SECONDS: ${NOTIFY_BACKOFF_SECONDS:-30}
+  KAFKA_BROKERS: kafka:29092
+  MAILER_BASE_URL: http://mailer:4100
+  MAILER_API_KEY: ${MAILER_API_KEY:?Set MAILER_API_KEY in .env}
+  PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-6}
+  PASSWORD_MAX_LENGTH: ${PASSWORD_MAX_LENGTH:-16}
+  PASSWORD_REQUIRE_DIGIT: ${PASSWORD_REQUIRE_DIGIT:-true}
+  PASSWORD_REQUIRE_UPPERCASE: ${PASSWORD_REQUIRE_UPPERCASE:-true}
+  PASSWORD_REQUIRE_LOWERCASE: ${PASSWORD_REQUIRE_LOWERCASE:-true}
+  PASSWORD_REQUIRE_SYMBOL: ${PASSWORD_REQUIRE_SYMBOL:-false}
+  AVATAR_ENABLED: ${AVATAR_ENABLED:-true}
+  AVATAR_MAX_FILE_SIZE_KB: ${AVATAR_MAX_FILE_SIZE_KB:-512}
+  AVATAR_ALLOWED_MIME_TYPES: ${AVATAR_ALLOWED_MIME_TYPES:-image/jpeg,image/png,image/webp}
+  # Auto-debit stays off until an ADMIN turns it on in the UI; these are only the floor.
+  AUTO_DEBIT_ENABLED: ${AUTO_DEBIT_ENABLED:-false}
+  AUTO_DEBIT_LEAD_DAYS: ${AUTO_DEBIT_LEAD_DAYS:-3}
+  AUTO_DEBIT_POLL_INTERVAL_MS: ${AUTO_DEBIT_POLL_INTERVAL_MS:-900000}
+  # Collateral floors for the hardship addendum check; an ADMIN can override them at runtime.
+  COLLATERAL_MIN_COVERAGE_PERCENT: ${COLLATERAL_MIN_COVERAGE_PERCENT:-100}
+  COLLATERAL_MAX_VALUATION_AGE_DAYS: ${COLLATERAL_MAX_VALUATION_AGE_DAYS:-365}
+  COLLATERAL_REQUIRE_PLEDGE_FOR_RESTRUCTURE: ${COLLATERAL_REQUIRE_PLEDGE_FOR_RESTRUCTURE:-true}
+  RESET_OTP_TTL_MINUTES: ${RESET_OTP_TTL_MINUTES:-10}
+  RESET_OTP_MAX_ATTEMPTS: ${RESET_OTP_MAX_ATTEMPTS:-5}
+  RESET_LINK_TTL_MINUTES: ${RESET_LINK_TTL_MINUTES:-60}
+  RESET_REQUEST_COOLDOWN_SECONDS: ${RESET_REQUEST_COOLDOWN_SECONDS:-60}
+  # Account lockout and password rotation; an ADMIN overrides these at runtime in system_config.
+  ACCOUNT_MAX_FAILED_ATTEMPTS: ${ACCOUNT_MAX_FAILED_ATTEMPTS:-3}
+  ACCOUNT_IDLE_LOCK_DAYS: ${ACCOUNT_IDLE_LOCK_DAYS:-90}
+  # The idle-lock job stays off until an ADMIN turns it on in the UI.
+  ACCOUNT_IDLE_LOCK_JOB_ENABLED: ${ACCOUNT_IDLE_LOCK_JOB_ENABLED:-false}
+  ACCOUNT_IDLE_LOCK_POLL_HOURS: ${ACCOUNT_IDLE_LOCK_POLL_HOURS:-24}
+  PASSWORD_MAX_AGE_DAYS: ${PASSWORD_MAX_AGE_DAYS:-30}
+  PASSWORD_EXPIRY_WARN_DAYS: ${PASSWORD_EXPIRY_WARN_DAYS:-7}
+  PASSWORD_HISTORY_COUNT: ${PASSWORD_HISTORY_COUNT:-5}
+  SECURITY_APPLY_TO_ADMIN_ACCOUNTS: ${SECURITY_APPLY_TO_ADMIN_ACCOUNTS:-true}
+
+x-kafka-env: &kafka-env
+  KAFKA_CFG_BROKER_ID: 1
+  KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+  # No EXTERNAL listener here: in production nothing outside this compose project consumes,
+  # so the broker stays reachable from the mailer and backend only.
+  KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT
+  KAFKA_CFG_LISTENERS: INTERNAL://0.0.0.0:29092
+  KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://kafka:29092
+  KAFKA_CFG_INTER_BROKER_LISTENER_NAME: INTERNAL
+  KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+  KAFKA_CFG_LOG_RETENTION_HOURS: "${KAFKA_LOG_RETENTION_HOURS:-72}"
+  ALLOW_PLAINTEXT_LISTENER: "yes"
+
+x-mailer-env: &mailer-env
+  MAILER_PORT: 4100
+  MAILER_API_KEY: ${MAILER_API_KEY:?Set MAILER_API_KEY in .env}
+  KAFKA_CONSUMER_ENABLED: "true"
+  KAFKA_BROKERS: kafka:29092
+  KAFKA_TOPIC: ${KAFKA_TOPIC:-loan.notification}
+  KAFKA_DLQ_TOPIC: ${KAFKA_DLQ_TOPIC:-loan.notification.dlq}
+  KAFKA_CONSUMER_GROUP: mailer-send
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:-Loan Management System <no-reply@loanms.local>}
+
+services:
+  kong:
+    image: kong:${KONG_VERSION:-3.6}
+    restart: unless-stopped
+    environment: *kong-env
+    ports:
+      - "${KONG_HTTP_PORT:-80}:8000"
+      # Change KONG_HTTPS_PORT to 443 only after a real certificate is configured.
+      - "${KONG_HTTPS_PORT:-8443}:8443"
+      # Loopback-only: the gateway scripts talk to this from the host, nothing else can.
+      - "127.0.0.1:${KONG_ADMIN_PORT:-8001}:8001"
+    depends_on:
+      kong-postgres:
+        condition: service_healthy
+      kong-migrations:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks:
+      - edge
+    deploy:
+      resources:
+        limits:
+          cpus: "${KONG_CPUS:-2.0}"
+          memory: ${KONG_MEMORY:-1g}
+    logging: *default-logging
+    healthcheck:
+      # bash is in the image; /dev/tcp probes the proxy port without needing curl or wget.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  kong-postgres:
+    image: postgres:${KONG_PG_IMAGE_TAG:-16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${KONG_PG_DB:-kong}
+      POSTGRES_USER: ${KONG_PG_USER:-kong}
+      POSTGRES_PASSWORD: ${KONG_PG_PASSWORD:?Set KONG_PG_PASSWORD in .env}
+    volumes:
+      - loan_kong_pg_data:/var/lib/postgresql/data
+    networks:
+      - data
+    deploy:
+      resources:
+        limits:
+          cpus: "${KONG_PG_CPUS:-1.0}"
+          memory: ${KONG_PG_MEMORY:-512m}
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  # One-shot: creates the Kong schema on first run, applies any newer migrations after that.
+  kong-migrations:
+    image: kong:${KONG_VERSION:-3.6}
+    restart: "no"
+    environment: *kong-env
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        kong migrations bootstrap || echo "already bootstrapped; continuing with up/finish";
+        kong migrations up && kong migrations finish
+    depends_on:
+      kong-postgres:
+        condition: service_healthy
+    networks:
+      - data
+
+  mysql:
+    image: mysql:${MYSQL_IMAGE_TAG:-8.4}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_NAME:-loan_management}
+      MYSQL_USER: ${DB_USER:-loan_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    # Thai and Lao text lives in these rows; the collation is not optional.
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - loan_mysql_data:/var/lib/mysql
+    networks:
+      - data
+    deploy:
+      resources:
+        limits:
+          cpus: "${MYSQL_CPUS:-2.0}"
+          memory: ${MYSQL_MEMORY:-1536m}
+    logging: *default-logging
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping --host=127.0.0.1 --user=root --password="$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # One-shot: runs server/src/migrations before the API is allowed to serve traffic.
+  # It reuses the image the backend service builds - compose finishes every build before it starts
+  # creating containers, so `up -d` on its own is enough.
+  db-migrate:
+    image: loan-ms/backend:${IMAGE_TAG:-prod}
+    restart: "no"
+    environment: *backend-env
+    # npm run db:migrate --workspace server  ==  typeorm -d dist/cli-datasource.js migration:run
+    entrypoint: ["npm"]
+    command: ["run", "db:migrate", "--workspace", "server"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - data
+
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: runtime
+    image: loan-ms/backend:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    environment: *backend-env
+    expose:
+      - "4000"
+    volumes:
+      # winston writes one hourly file per clock hour under server/dist/logs (see utils/logger.ts).
+      # A named volume keeps them across restarts while the container filesystem stays read-only-ish.
+      - loan_backend_logs:/app/server/dist/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      # Serve traffic only after the schema is at the current migration.
+      db-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      mailer:
+        condition: service_started
+    networks:
+      - edge
+      - data
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "${BACKEND_CPUS:-2.0}"
+          memory: ${BACKEND_MEMORY:-1g}
+    logging: *default-logging
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  zookeeper:
+    image: bitnami/zookeeper:${ZOOKEEPER_IMAGE_TAG:-3.9}
+    restart: unless-stopped
+    environment:
+      # Still anonymous, because the port is not published and only kafka talks to it.
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    volumes:
+      - loan_zookeeper_data:/bitnami/zookeeper
+    networks:
+      - data
+    deploy:
+      resources:
+        limits:
+          cpus: "${ZOOKEEPER_CPUS:-1.0}"
+          memory: ${ZOOKEEPER_MEMORY:-768m}
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  kafka:
+    image: bitnami/kafka:${KAFKA_IMAGE_TAG:-3.7}
+    restart: unless-stopped
+    environment: *kafka-env
+    volumes:
+      - loan_kafka_data:/bitnami/kafka
+    networks:
+      - data
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "${KAFKA_CPUS:-1.5}"
+          memory: ${KAFKA_MEMORY:-1280m}
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:29092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  mailer:
+    build:
+      context: .
+      dockerfile: mailer/Dockerfile
+      target: runtime
+    image: loan-ms/mailer:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    environment: *mailer-env
+    expose:
+      - "4100"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - data
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "${MAILER_CPUS:-1.0}"
+          memory: ${MAILER_MEMORY:-512m}
+    logging: *default-logging
+
+  frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        # Static files only: /api is Kong's job in this stack.
+        WEB_NGINX_CONF: web/nginx.prod.conf
+    image: loan-ms/web:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    # No published port on purpose - the only way in is Kong's "/" route.
+    expose:
+      - "80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - edge
+    deploy:
+      resources:
+        limits:
+          cpus: "${FRONTEND_CPUS:-1.0}"
+          memory: ${FRONTEND_MEMORY:-256m}
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
+
+networks:
+  # Kong, the API and the static app. Anything that must answer a browser request.
+  edge:
+    driver: bridge
+  # Databases and brokers. Containers here are never published to the host.
+  data:
+    driver: bridge
+
+volumes:
+  loan_kong_pg_data:
+  loan_mysql_data:
+  loan_backend_logs:
+  loan_zookeeper_data:
+  loan_kafka_data:

@@ -13,6 +13,15 @@ export const canCreate = (role: UserRole | undefined): boolean =>
 export const canApprove = (role: UserRole | undefined): boolean =>
   role === UserRole.CHECKER || role === UserRole.HEAD_APPROVER || role === UserRole.ADMIN;
 
+/**
+ * Releasing a guarantor, a payer or a pledge takes security away from a live loan, so it sits above the
+ * maker's and the checker's desks — the same ceiling the server enforces on those routes.
+ */
+export const RELEASE_ROLES: UserRole[] = [UserRole.HEAD_APPROVER, UserRole.ADMIN];
+
+export const canRelease = (role: UserRole | undefined): boolean =>
+  role !== undefined && RELEASE_ROLES.includes(role);
+
 export const isAdmin = (role: UserRole | undefined): boolean => role === UserRole.ADMIN;
 
 export const canSeeReports = (role: UserRole | undefined): boolean =>

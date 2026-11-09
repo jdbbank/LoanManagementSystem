@@ -1,7 +1,9 @@
+import EmptyState from '../components/EmptyState';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import DownloadIcon from '@mui/icons-material/Download';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -17,6 +19,7 @@ import { api } from '../api/client';
 import { formatLak, type AuditLog } from '../api/types';
 import PageHeader from '../components/PageHeader';
 import CustomPagination from '../components/CustomPagination';
+import { downloadCsv, toCsv } from '../utils/csv';
 
 const INITIAL_ROWS_PER_PAGE = 10;
 
@@ -47,9 +50,48 @@ export default function AuditPage() {
     setFilters((current) => ({ ...current, [name]: value }));
   };
 
+  const exportCsv = () => {
+    const headers = [
+      t('common.date'),
+      t('audit.actionContains'),
+      t('audit.actor'),
+      t('audit.transactionId'),
+      t('audit.loanId'),
+      t('audit.statusTransition'),
+      t('common.amount'),
+      t('common.currency'),
+      t('common.reason'),
+    ];
+    const body = (auditQuery.data?.logs ?? []).map((log) => [
+      new Date(log.createdAt).toISOString(),
+      log.action,
+      log.actor?.fullName ?? log.userId ?? t('audit.system'),
+      log.transactionId ?? '',
+      log.loanId ?? '',
+      log.previousStatus || log.newStatus ? `${log.previousStatus ?? ''} -> ${log.newStatus ?? ''}` : '',
+      log.amount ?? '',
+      log.currency ?? '',
+      log.reason ?? '',
+    ]);
+    downloadCsv(`audit-page-${page + 1}.csv`, toCsv(headers, body));
+  };
+
   return (
     <Stack spacing={2}>
-      <PageHeader title="Audit Trail" />
+      <PageHeader
+        title="Audit Trail"
+        actions={
+          <Button
+            disabled={(auditQuery.data?.logs.length ?? 0) === 0}
+            onClick={exportCsv}
+            size="small"
+            startIcon={<DownloadIcon />}
+            variant="outlined"
+          >
+            {t('common.exportCsv')}
+          </Button>
+        }
+      />
       <Card>
         <CardContent>
           <Stack spacing={2}>
@@ -93,7 +135,7 @@ export default function AuditPage() {
                     <TableCell>{log.reason ?? '—'}</TableCell>
                   </TableRow>
                 ))}
-                {auditQuery.data?.logs.length === 0 && <TableRow><TableCell colSpan={7} align="center">{t('audit.none')}</TableCell></TableRow>}
+                {auditQuery.data?.logs.length === 0 && <EmptyState colSpan={7} message={t('audit.none')} />}
               </TableBody>
             </Table>
             <CustomPagination

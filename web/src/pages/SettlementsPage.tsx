@@ -1,9 +1,10 @@
+import EmptyState from '../components/EmptyState';
+import TableSkeleton from '../components/TableSkeleton';
 import AddIcon from '@mui/icons-material/Add';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -25,6 +26,7 @@ import {
   LoanStatus,
   SettlementStatus,
   formatLak,
+  type EarlySettlementFeePreview,
   type Loan,
   type SettlementAgreement,
 } from '../api/types';
@@ -73,6 +75,13 @@ export default function SettlementsPage() {
     queryFn: () =>
       api.get<LoanResponse>('/loans', { params: { status: LoanStatus.ACTIVE, limit: 100 } }).then((r) => r.data),
     enabled: action === 'CREATE',
+  });
+
+  const feePreviewQuery = useQuery({
+    queryKey: ['settlements', 'early-settlement-fee', loanId],
+    queryFn: () =>
+      api.get<{ data: EarlySettlementFeePreview }>(`/settlements/early-settlement-fee/${loanId}`).then((r) => r.data.data),
+    enabled: action === 'CREATE' && Boolean(loanId),
   });
 
   const refresh = async () => {
@@ -152,7 +161,7 @@ export default function SettlementsPage() {
       <Card>
         <CardContent>
           {agreementsQuery.isLoading ? (
-            <Stack sx={{ alignItems: 'center', py: 4 }}><CircularProgress /></Stack>
+            <TableSkeleton columns={7} label={t('common.loading')} />
           ) : (
             <Table size="small">
               <TableHead>
@@ -160,6 +169,7 @@ export default function SettlementsPage() {
                   <TableCell>{t('settlements.agreement')}</TableCell>
                   <TableCell>{t('common.loan')}</TableCell>
                   <TableCell>{t('settlements.agreedAmount')}</TableCell>
+                  <TableCell>{t('settlements.earlySettlementFee')}</TableCell>
                   <TableCell>{t('common.status')}</TableCell>
                   <TableCell>{t('common.reason')}</TableCell>
                   <TableCell>{t('common.actions')}</TableCell>
@@ -171,6 +181,11 @@ export default function SettlementsPage() {
                     <TableCell>{agreement.agreementNo}</TableCell>
                     <TableCell>{agreement.loanId}</TableCell>
                     <TableCell>{formatLak(agreement.agreedAmount, agreement.currency)}</TableCell>
+                    <TableCell>
+                      {agreement.earlySettlementFee > 0
+                        ? formatLak(agreement.earlySettlementFee, agreement.currency)
+                        : '—'}
+                    </TableCell>
                     <TableCell><StatusChip status={agreement.status} /></TableCell>
                     <TableCell>{agreement.reason ?? '—'}</TableCell>
                     <TableCell>
@@ -184,7 +199,7 @@ export default function SettlementsPage() {
                   </TableRow>
                 ))}
                 {agreementsQuery.data?.data.length === 0 && (
-                  <TableRow><TableCell colSpan={6} align="center">{t('settlements.none')}</TableCell></TableRow>
+                  <EmptyState colSpan={7} message={t('settlements.none')} />
                 )}
               </TableBody>
             </Table>
@@ -235,11 +250,35 @@ export default function SettlementsPage() {
                     onChange={setAgreedAmount}
                     required
                   />
+                  {feePreviewQuery.data && (
+                    <Alert severity={feePreviewQuery.data.fee > 0 ? 'warning' : 'info'}>
+                      {feePreviewQuery.data.settledBeforeTermEnd && feePreviewQuery.data.fee > 0
+                        ? t('settlements.feeApplies', {
+                            percent: feePreviewQuery.data.feePercent,
+                            principal: formatLak(feePreviewQuery.data.principalOutstanding),
+                            fee: formatLak(feePreviewQuery.data.fee),
+                          })
+                        : t('settlements.feeNone', {
+                            reason: feePreviewQuery.data.settledBeforeTermEnd
+                              ? t('settlements.feeNoneZero')
+                              : t('settlements.feeNoneTermReached'),
+                          })}
+                    </Alert>
+                  )}
                 </>
               )}
               {action === 'PAY' && (
                 <>
                   <Typography variant="body2">{selected?.agreementNo} · Agreed {formatLak(selected?.agreedAmount ?? 0)}</Typography>
+                  {(selected?.earlySettlementFee ?? 0) > 0 && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      {t('settlements.paymentCeiling', {
+                        agreed: formatLak(selected?.agreedAmount ?? 0),
+                        fee: formatLak(selected?.earlySettlementFee ?? 0),
+                        total: formatLak((selected?.agreedAmount ?? 0) + (selected?.earlySettlementFee ?? 0)),
+                      })}
+                    </Typography>
+                  )}
                   <MoneyTextField
                     label={t('settlements.cashReceived')}
                     minValue={0}

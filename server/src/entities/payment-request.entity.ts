@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-import { decimalColumn, PaymentRequestStatus } from './types';
+import { decimalColumn, PaymentRequestPurpose, PaymentRequestStatus } from './types';
 
 /**
  * Payment request lifecycle (locked requirement section 4).
@@ -36,6 +36,13 @@ export class PaymentRequest {
 
   @Column({ type: 'enum', enum: PaymentRequestStatus, default: PaymentRequestStatus.PENDING })
   status!: PaymentRequestStatus;
+
+  /**
+   * PAY_DEBT settles instalments that have arrived and is refused above that ceiling;
+   * DEPOSIT_TO_CREDIT books cash against no debt, so the whole amount lands in the customer's credit.
+   */
+  @Column({ type: 'enum', enum: PaymentRequestPurpose, default: PaymentRequestPurpose.PAY_DEBT })
+  purpose!: PaymentRequestPurpose;
 
   @Column({ type: 'uuid', nullable: true })
   previousRequestId!: string | null;

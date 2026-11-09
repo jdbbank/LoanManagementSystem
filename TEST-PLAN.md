@@ -16,7 +16,7 @@
 | `DB_USER` | `root` | `server/.env` |
 | `DB_NAME` | **`loan_management`** | `server/.env` |
 | `NODE_ENV` | `development` | `server/.env` |
-| `DB_SYNCHRONIZE` | ไม่ได้ตั้งใน `server/.env` แต่ `synchronize: !env.isProduction` → **true ในโหมด dev** | `server/src/datasource.ts:67` |
+| `DB_SYNCHRONIZE` | ไม่ได้ตั้งใน `server/.env` แต่ `synchronize: !env.isProduction` → **true ในโหมด dev** · ข้อนี้เก่า: ปัจจุบันโครงสร้างตารางมาจาก migration แล้ว (`npm run db:migrate`) ดู scripts/test/README.md หัวข้อ 8 | `server/src/datasource.ts:67` |
 | `SEED_ON_BOOT` | **`true`** ⚠️ | `server/.env` |
 | Container MySQL | `loan-ms-mysql` (mysql:8.4, healthy) | `docker ps` |
 | Container อื่น | `kafka` (redpanda) up, **ไม่มี** zookeeper/mailer/backend/frontend ที่รันอยู่ | `docker ps` |
@@ -59,7 +59,7 @@
 2. **Production lockdown**: ถ้า `NODE_ENV=production` → ปฏิเสธ; ถ้า `DB_HOST` ไม่อยู่ใน `{127.0.0.1, localhost, host.docker.internal, 172.16.0.0/12, loan-ms-mysql}` → ปฏิเสธ; ถ้า `mysqldump` backup ยังไม่มีใน `backups/` สำหรับ run นี้ → ปฏิเสธ
 3. **ยืนยันแบบ interactive ปิดไว้** และใช้ `--confirm-loan_management` flag เป็นกุญแจอีกชั้น (รันอัตโนมัติได้ แต่ต้องใส่ flag ชื่อ DB ผูกกับ guard ข้อ 1)
 4. วิธีล้าง: ไม่มี migration ไฟล์ในโปรเจกต์ (โครงสร้างตารางสร้างด้วย `synchronize`) → **จะไม่แตะ DDL เลย** ใช้ `SET FOREIGN_KEY_CHECKS=0` → `TRUNCATE TABLE` ทีละตารางตามรายชื่อที่อ่านจาก `information_schema` (ไม่ hard-code) → `SET FOREIGN_KEY_CHECKS=1` → ตรวจนับว่าทุกตารางเหลือ 0 แถว → พิมพ์รายงาน
-5. ตารางที่ **ไม่แตะ** เลย (ค่าตั้งระบบที่ต้องอยู่ต่อ): `system_config`, `email_templates` — ค่าดีฟอลต์ policy และเทมเพลตมากจาก bootstrap ของระบบเอง (ถ้าสั่ง `--wipe-config` ค่อยล้างและให้เซิร์ฟเวอร์ seed กลับ)
+5. ตารางที่ **ไม่แตะ** เลย (ค่าตั้งระบบที่ต้องอยู่ต่อ): `system_config`, `email_templates` — ค่าดีฟอลต์ policy และเทมเพลตมากจาก bootstrap ของระบบเอง (ถ้าสั่ง `--wipe-config` ค่อยล้างและให้เซิร์ฟเวอร์ seed กลับ) และ `schema_migrations` — บันทึกว่า migration ไหนรันแล้ว ซึ่ง **ไม่ถูกล้างแม้สั่ง `--wipe-config`** เพราะถ้าตารางนี้ว่างทั้งที่ยังมีตารางอยู่ `db:migrate` จะเข้าใจว่ายังไม่เคยสร้างและไปรัน `CREATE TABLE` ซ้ำ
 6. รันซ้ำได้เสมอ (idempotent) และต้องทำต่อเมื่อเซิร์ฟเวอร์หยุดเขียนอยู่แล้ว (ตรวจ `GET /health` แล้วเตือน)
 
 ### 0.5 ลำดับขั้นตอนที่ผมจะทำหลังได้รับอนุมัติ

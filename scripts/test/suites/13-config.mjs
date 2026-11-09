@@ -374,18 +374,19 @@ export default async function suite(ctx) {
   // ================================================================ B. auth surface
   const paths401 = [
     ['GET', '/api/config/thresholds'], ['GET', '/api/config/kyc'], ['GET', '/api/config/password'],
-    ['GET', '/api/config/avatar'], ['PUT', '/api/config/thresholds'], ['PUT', '/api/config/kyc'],
-    ['PUT', '/api/config/password'], ['PUT', '/api/config/avatar'],
+    ['GET', '/api/config/security'], ['GET', '/api/config/avatar'], ['PUT', '/api/config/thresholds'],
+    ['PUT', '/api/config/kyc'], ['PUT', '/api/config/password'], ['PUT', '/api/config/security'],
+    ['PUT', '/api/config/avatar'],
   ];
   const noauth = [];
   for (const [m, p] of paths401) {
     const r = await api(m, p, { token: null, body: m === 'PUT' ? {} : undefined });
     if (r.status !== 401) noauth.push(`${m} ${p} -> ${r.status}`);
   }
-  ok('ทุก endpoint ของ /api/config ตอบ 401 เมื่อไม่มี token (8 เส้นทาง)', noauth.length === 0, {
-    input: '4 GET + 4 PUT without a bearer token',
+  ok('ทุก endpoint ของ /api/config ตอบ 401 เมื่อไม่มี token (10 เส้นทาง)', noauth.length === 0, {
+    input: '5 GET + 5 PUT without a bearer token',
     expected: 'all 401',
-    actual: noauth.length ? noauth.join(', ') : '8/8 401',
+    actual: noauth.length ? noauth.join(', ') : '10/10 401',
   });
 
   const guardCfgBefore = rowsJson(await cfgNow());
@@ -397,16 +398,17 @@ export default async function suite(ctx) {
       ['/api/config/thresholds', { checkerThreshold: 1, headThreshold: 1 }],
       ['/api/config/kyc', { maxFileSizeKb: 2048 }],
       ['/api/config/password', { minLength: 9 }],
+      ['/api/config/security', { maxFailedAttempts: 5 }],
       ['/api/config/avatar', { enabled: false }],
     ]) {
       const r = await api('PUT', p, { token: tokens[role], body });
       if (r.status !== 403) deny.push(`${role} PUT ${p} -> ${r.status}`);
     }
   }
-  ok('PUT ทั้ง 4 endpoint ตอบ 403 กับ role ที่ไม่ใช่ ADMIN (16 calls)', deny.length === 0, {
-    input: 'HEAD_APPROVER/CHECKER/MAKER/VIEWER x 4 endpoints',
+  ok('PUT ทั้ง 5 endpoint ตอบ 403 กับ role ที่ไม่ใช่ ADMIN (20 calls)', deny.length === 0, {
+    input: 'HEAD_APPROVER/CHECKER/MAKER/VIEWER x 5 endpoints',
     expected: 'all 403',
-    actual: deny.length ? deny.join(', ') : '16/16 403',
+    actual: deny.length ? deny.join(', ') : '20/20 403',
   });
   const guardCfgAfter = rowsJson(await cfgNow());
   const guardAuditAfter = (await rows(conn, 'SELECT id FROM audit_logs')).length;
@@ -645,14 +647,20 @@ export default async function suite(ctx) {
   const kycTouched = ['kyc.upload.maxFileSizeKb', 'kyc.maxTotalBytesPerCustomer', 'kyc.expiryWarningDays',
     'kyc.requireFamilyBook', 'kyc.allowedDocumentTypes', 'kyc.requiredIdentityTypes', 'kyc.upload.allowedMimeTypes'];
   const kycCreated = kycTouched.filter((k) => !snapshotMap.has(k) && kycPutRows.has(k));
+  const kycAbsentBefore = kycTouched.filter((k) => !snapshotMap.has(k));
   const kycUntouched = [...snapshotMap.keys()]
     .filter((k) => !kycTouched.includes(k))
     .filter((k) => String(snapshotMap.get(k).value) !== String(kycPutRows.get(k)?.value) ||
       String(snapshotMap.get(k).valueText ?? '') !== String(kycPutRows.get(k)?.valueText ?? ''));
+  // Which of the seven keys the PUT has to create depends on the table: a database that already carries
+  // them (a pinned or a previously configured one) gains none. What must hold either way is that the
+  // writes stay inside the fields that were sent, and that every field missing before shows up now.
   ok('PUT /kyc เขียนเฉพาะ key ของ field ที่ส่งมา และ key อื่นในระบบไม่ถูกแตะ',
-    kycCreated.length === 4 && kycUntouched.length === 0, {
+    kycCreated.every((k) => kycTouched.includes(k)) &&
+      kycAbsentBefore.every((k) => kycCreated.includes(k)) &&
+      kycUntouched.length === 0, {
       input: 'row-level diff by key',
-      expected: '4 key ใหม่ (familyBook, docTypes, identityTypes, mime) + 3 key เดิมถูกแก้, 0 คีย์อื่นเปลี่ยน',
+      expected: `key ที่สร้างใหม่ = เฉพาะ 7 คีย์ของฟิลด์ที่ส่งที่ยังไม่มีในตาราง (${kycAbsentBefore.length} คีย์), 0 คีย์อื่นเปลี่ยน`,
       actual: `created=[${kycCreated.join(',')}] othersChanged=[${kycUntouched.join(',')}]`,
     });
   ok('แถวแบบ csv/docTypes ที่สร้างใหม่เก็บ value เป็น 0.00 (คอลัมน์เดียวใช้ร่วม, overlay อ่านเฉพาะ valueText)',
@@ -661,7 +669,7 @@ export default async function suite(ctx) {
       input: 'แถว kyc.allowedDocumentTypes ที่เพิ่งสร้าง',
       expected: 'value=0.00 + valueText = รายการที่ join ด้วย ,',
       actual: `value=${kycPutRows.get('kyc.allowedDocumentTypes')?.value} valueText=${kycPutRows.get('kyc.allowedDocumentTypes')?.valueText}`,
-      note: 'design เดียวกันทั้งตาราง system_config — ค่า 0 ไม่ใช่ของเสีย แต่ทำให้ "0 = ไม่ได้ตั้ง" เป็นบรรทัดฐานของ layer overlay (รากของ F-CFG-1)',
+      note: 'design เดียวกันทั้งตาราง system_config — แถว csv/docTypes เก็บ value เป็น 0.00 เสมอ overlay จึงตีความ 0 ของฟิลด์ number ว่า "ไม่ได้ตั้ง" ยกเว้นฟิลด์ที่ทะเบียนระบุ zeroIsValue (ตอนนี้มี expiryWarningDays ฟิลด์เดียว) ซึ่ง 0 คือค่าที่ตั้งใจตั้งเอง — จุดนี้เคยเป็นรากของ F-CFG-1 และแก้แล้ว',
     });
   const kycAudit = await configAuditSince();
   ok('audit CONFIG_UPDATED ของ kyc: previousStatus/newStatus = checksum 16 hex ของ policy ก่อน/หลัง + reason แบบ describe',
@@ -902,10 +910,16 @@ export default async function suite(ctx) {
   // ================================================================ G. malformed rows (SQL layer)
   const gCases = [
     {
-      name: 'แถว number ค่า 0: overlay ถือเป็น "ไม่ได้ตั้ง" แล้วถอยกลับไป env default',
+      name: 'แถว number ที่ 0 เป็นค่าที่ตั้งใจตั้ง (zeroIsValue): overlay ให้ 0 มีผลจริง',
       key: 'kyc.expiryWarningDays', value: 0, text: null,
-      want: (p) => p?.expiryWarningDays === ENV_DEFAULTS.kyc.expiryWarningDays,
-      expect: 'expiryWarningDays = 60 (default) ไม่ใช่ 0',
+      want: (p) => p?.expiryWarningDays === 0,
+      expect: 'expiryWarningDays = 0 (ปิดคำเตือน) ไม่ใช่ default 60',
+    },
+    {
+      name: 'แถว number ค่า 0 ของฟิลด์ที่ 0 ไม่ใช่ค่าที่ถูกต้อง: overlay ถือเป็น "ไม่ได้ตั้ง" แล้วถอยกลับไป env default',
+      key: 'kyc.upload.maxFileSizeKb', value: 0, text: null,
+      want: (p) => p?.maxFileSizeKb === ENV_DEFAULTS.kyc.maxFileSizeKb,
+      expect: 'maxFileSizeKb = default ไม่ใช่ 0 (มิฉะนั้นอัปโหลดจะพังทั้งระบบ)',
     },
     {
       name: 'แถว number ติดลบ: ถูกมองข้ามแบบเดียวกัน',
@@ -1008,20 +1022,21 @@ export default async function suite(ctx) {
   await applySnapshot();
 
   // ================================================================ H. findings
-  // F-CFG-1: expiryWarningDays = 0 passes zod and the business check, but the number overlay only
-  // honours values > 0, so "turn the expiry warning off" is silently impossible through the API.
+  // F-CFG-1 (แก้แล้ว): expiryWarningDays = 0 passes zod and the business check, and the number overlay
+  // now honours a stored 0 because the registry marks that field zeroIsValue. This block is kept as a
+  // regression guard: if the flag is dropped, "turn the expiry warning off" becomes silently impossible.
   const zeroPut = await api('PUT', '/api/config/kyc', { token: admin, body: { expiryWarningDays: 0 } });
   const zeroRows = mapOf(await cfgNow());
   const zeroPolicy = zeroPut.json?.data?.policy;
-  ok('F-CFG-1: PUT /kyc {expiryWarningDays: 0} ต้องตั้งค่าปิดคำเตือนเอกสารหมดอายุได้จริง (zod อนุญาต 0 และ assertPolicyMakesSense อนุญาต 0)',
+  ok('F-CFG-1 (regression): PUT /kyc {expiryWarningDays: 0} ต้องตั้งค่าปิดคำเตือนเอกสารหมดอายุได้จริง (zod อนุญาต 0 และ assertPolicyMakesSense อนุญาต 0)',
     zeroPut.status === 200 && zeroPolicy?.expiryWarningDays === 0, {
       input: 'PUT /api/config/kyc {expiryWarningDays: 0}',
       expected: '200 + policy.expiryWarningDays = 0',
-      actual: `HTTP ${zeroPut.status} row=${zeroRows.get('kyc.expiryWarningDays')?.value} แต่ policy.expiryWarningDays=${zeroPolicy?.expiryWarningDays} (ค่าที่ระบบใช้จริง)`,
-      note: 'เขียนลงแถวเป็น 0.00 แล้ว overlay (kind=number, เงื่อนไข n>0) ทิ้งค่ากลับเป็น env default 60 —แม้ response ของ PUT เองก็ยังตอบ 60 การตั้งค่า "ปิดคำเตือน" จึงเป็นไปไม่ได้ทาง API และไม่มีข้อความ error บอกเลย (ฟิลด์อื่นถูก zod min(1) กันไว้ มีฟิลด์เดียวที่ 0 ถูกต้องตามกติกา)',
+      actual: `HTTP ${zeroPut.status} row=${zeroRows.get('kyc.expiryWarningDays')?.value} policy.expiryWarningDays=${zeroPolicy?.expiryWarningDays} (ค่าที่ระบบใช้จริง)`,
+      note: 'เดิมเขียนลงแถวเป็น 0.00 แล้ว overlay (kind=number, เงื่อนไข n>0) ทิ้งค่ากลับเป็น env default 60 ตอนนี้ทะเบียน KYC_CONFIG_KEYS ระบุ zeroIsValue ของฟิลด์นี้ไว้ จึงใช้ 0 ได้จริง ส่วนฟิลด์ที่ 0 ทำให้ระบบพัง (maxFileSizeKb, maxFilesPerRequest, maxTotalBytesPerCustomer) ยังถูกมองว่า "ไม่ได้ตั้ง" เหมือนเดิม',
     });
   const zeroRestore = await api('PUT', '/api/config/kyc', { token: admin, body: { expiryWarningDays: 60 } });
-  ok('หลัง PUT {expiryWarningDays:60} ค่ากลับมาใช้ได้ปกติ (ยืนยันว่า 0 คือข้อยกเว้นของ overlay ไม่ใช่ cache เสีย)',
+  ok('หลัง PUT {expiryWarningDays:60} ค่ากลับมาใช้ได้ปกติ (ยืนยันว่า 0 คือค่าที่ตั้งใจ ไม่ใช่ cache เสีย)',
     zeroRestore.status === 200 && zeroRestore.json?.data?.policy?.expiryWarningDays === 60, {
       input: 'PUT /kyc {expiryWarningDays:60}',
       expected: '200 + 60',
@@ -1088,6 +1103,20 @@ export default async function suite(ctx) {
 
   const ids = suiteUsers.map((u) => u.id);
   if (ids.length) {
+    // dispatchNotifications() อ่านทั้งรุ่นมาถือไว้ก่อน แล้วค่อยเขียนสถานะคืนทีหลังด้วย em.save() ซึ่ง
+    // ถ้าแถวถูกลบไปกลางคัน save() จะ INSERT แถวนั้นกลับมาจากความทรง (F-NTF-7) แถว USER_CREATED ของ
+    // บัญชีที่ลบไปแล้วจึงกลายเป็นแถวกำพร้า และทำให้จำนวนแถวตอนเช็ค baseline กับที่เช็คตอนปิด suite ไม่เท่ากัน
+    // ต้องรอให้แถวของ suite เองออกจากระบบส่ง (PENDING/FAILED หมด) ก่อนลบ — ไม่ใช่การผ่อนการเช็ค
+    const dispatchDeadline = Date.now() + 15_000;
+    for (;;) {
+      const inFlight = (await rows(
+        conn,
+        "SELECT COUNT(*) n FROM notification_outbox WHERE userId IN (?) AND status IN ('PENDING','FAILED')",
+        [ids],
+      ))[0];
+      if (Number(inFlight?.n ?? 0) === 0 || Date.now() > dispatchDeadline) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
     await conn.query('DELETE FROM user_avatar_contents WHERE avatarId IN (SELECT id FROM user_avatars WHERE userId IN (?))', [ids]);
     await conn.query('DELETE FROM user_avatars WHERE userId IN (?)', [ids]);
     await conn.query('DELETE FROM notification_outbox WHERE userId IN (?)', [ids]);

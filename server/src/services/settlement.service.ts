@@ -3,8 +3,29 @@ import { SettlementStatus } from '../entities/types';
 import { notFound, unprocessable } from '../utils/errors';
 import { EPS, num, round2 } from '../utils/money';
 
+/**
+ * The price of ending a loan before its last instalment falls due: the loan's own fee percent applied
+ * to the principal still owed. A loan that has run its term, or a product with no fee configured,
+ * pays nothing — the fee is what early is, not what settling is.
+ */
+export function computeEarlySettlementFee(
+  principalOutstanding: number,
+  feePercent: number,
+  settledBeforeTermEnd: boolean,
+): number {
+  if (!settledBeforeTermEnd || num(feePercent) <= 0) return 0;
+  return round2(Math.max(0, num(principalOutstanding)) * (num(feePercent) / 100));
+}
+
+/** Everything the customer has to hand over to close the loan under this agreement. */
+export function settlementTotalDue(
+  agreement: Pick<SettlementAgreement, 'agreedAmount' | 'earlySettlementFee'>,
+): number {
+  return round2(num(agreement.agreedAmount) + num(agreement.earlySettlementFee));
+}
+
 export function validateSettlementPayment(
-  agreement: Pick<SettlementAgreement, 'loanId' | 'status' | 'agreedAmount'> | null,
+  agreement: Pick<SettlementAgreement, 'loanId' | 'status' | 'agreedAmount' | 'earlySettlementFee'> | null,
   loanId: string,
   paymentTotal: number,
 ): void {
@@ -15,22 +36,46 @@ export function validateSettlementPayment(
   if (agreement.loanId !== loanId) {
     throw unprocessable('Settlement agreement belongs to a different loan');
   }
-  if (num(paymentTotal) - num(agreement.agreedAmount) > EPS) {
+  const totalDue = settlementTotalDue(agreement);
+  if (num(paymentTotal) - totalDue > EPS) {
     throw unprocessable(
-      `Settlement payment (${num(paymentTotal)}) exceeds the agreed amount (${num(agreement.agreedAmount)})`,
+      `Settlement payment (${num(paymentTotal)}) exceeds the agreed amount (${num(agreement.agreedAmount)}) ` +
+        `plus its early-settlement fee (${num(agreement.earlySettlementFee)})`,
+    );
+  }
+}
+
+/**
+ * The fee is debt like any other penalty, so it has to be billed and posted before the settlement
+ * payment settles the book. Posted first means it is in the outstanding the payment allocates against;
+ * posted later would mean the payment overpays into credit and the shortfall waiver hands the fee back.
+ */
+export function assertEarlySettlementFeePosted(
+  agreement: Pick<SettlementAgreement, 'agreedAmount' | 'earlySettlementFee'>,
+  postedFeeAmount: number,
+): void {
+  const fee = num(agreement.earlySettlementFee);
+  if (fee <= EPS) return;
+  if (postedFeeAmount + EPS < fee) {
+    throw unprocessable(
+      `Early-settlement fee of ${fee} must be approved and posted before the settlement payment — ` +
+        `${round2(num(postedFeeAmount))} posted so far`,
     );
   }
 }
 
 export function validateSettlementShortfallWaiver(
-  agreedAmount: number,
+  agreement: Pick<SettlementAgreement, 'agreedAmount' | 'earlySettlementFee'>,
   postedPaymentAmount: number,
   postedReversalAmount: number,
 ): void {
   const netPaid = round2(num(postedPaymentAmount) - num(postedReversalAmount));
-  if (netPaid + EPS < num(agreedAmount)) {
+  const totalDue = settlementTotalDue(agreement);
+  if (netPaid + EPS < totalDue) {
     throw unprocessable(
-      `Settlement payments posted (${netPaid}) are below the agreed amount (${num(agreedAmount)}); the agreed amount must be fully paid before waiving the shortfall`,
+      `Settlement payments posted (${netPaid}) are below what the agreement asks for (${totalDue}: ` +
+        `${num(agreement.agreedAmount)} agreed plus ${num(agreement.earlySettlementFee)} early-settlement fee); ` +
+        `the full amount must be paid before waiving the shortfall`,
     );
   }
 }

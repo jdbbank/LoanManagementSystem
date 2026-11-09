@@ -1,7 +1,7 @@
 // 3.4 KYC: evidence upload rules, checklist, maker-checker review, reverify-on-change,
 // expiry handling and the ADMIN-only reopen rollback.
 import { createHash } from 'node:crypto';
-import { api, check, errorMessage, statusCheck } from '../lib/harness.mjs';
+import { api, check, errorMessage, payloadOf, rows, statusCheck, USER_NAMES, withPinnedPolicies } from '../lib/harness.mjs';
 import { fakeImageBytes, jpegBytes, multipartWithFields, pngBytes } from '../lib/files.mjs';
 
 const CAT = 'kyc';
@@ -20,11 +20,18 @@ const COMPLETE_SET = [
 const customerFixtures = {};
 
 export default async function suite(ctx) {
+  // system_config is deliberately kept by reset-db, and an earlier suite can leave the document-type
+  // sets narrowed. The cases here are written against the shipped policy, so pin it for the run and
+  // put back whatever was found when the suite ends — including when a case throws.
+  return withPinnedPolicies(ctx.api, ['kyc'], (pinned) => run(ctx, pinned.kyc));
+}
+
+/** The suite itself, on top of the pinned policy the wrapper installed. */
+async function run(ctx, policy) {
   const { tokens, conn } = ctx;
   const admin = tokens.admin;
   const op1 = tokens.op1;
   const checker = tokens.checker2; // checker1 is the maker in other suites; keep them separate
-  const policy = (await api('GET', '/api/config/kyc', { token: admin })).json?.data?.policy ?? {};
 
   // fresh customers so the seeded KYC states stay untouched
   for (const [key, name] of [['flow', 'Test Kyc Flow'], ['expired', 'ສ testing Kyc Expired']]) {
@@ -42,6 +49,114 @@ export default async function suite(ctx) {
   const flow = customerFixtures.flow;
   const base = `/api/customers/${flow?.id}/kyc`;
   if (!flow?.id) return;
+
+  // ----------------------------------------------------- CUSTOMER_REGISTERED: การลงทะเบียนลูกค้าแจ้งใคร
+  // เหตุการณ์นี้ไม่ผูกกับรายการกู้ แถวจึง loanId IS NULL -- แบบแผน purge ของ suite อื่นที่กรองด้วย loanId
+  // เก็บไม่ถึง จึงจำ id ของแถวที่บล็อกนี้สร้างแล้วลบเองตอนจบ (transport=log: ไม่มีเมลจริงออกนอกเครื่อง)
+  const notifyIds = [];
+  const mailForCustomer = async (customerNumber) => {
+    const all = await rows(conn, "SELECT id, recipientEmail, customerId, loanId, status, payload FROM notification_outbox WHERE type = 'CUSTOMER_REGISTERED'", []);
+    const mine = all.filter((row) => payloadOf(row).customerNumber === customerNumber);
+    notifyIds.push(...mine.map((row) => row.id));
+    return mine;
+  };
+
+  try {
+    const approverMails = (
+      await rows(
+        conn,
+        "SELECT email FROM users WHERE role IN ('CHECKER','HEAD_APPROVER','ADMIN') AND isActive = 1 AND email IS NOT NULL AND email <> '' ORDER BY email",
+      )
+    ).map((r) => r.email);
+    const actorFullName = async (username) => (await rows(conn, 'SELECT fullName FROM users WHERE username = ?', [username]))[0]?.fullName ?? null;
+    const actorEmail = async (username) => (await rows(conn, 'SELECT email FROM users WHERE username = ?', [username]))[0]?.email ?? null;
+    const makerName = await actorFullName(USER_NAMES.op1);
+
+    // (1) ลูกค้าที่ suite นี้สร้างไม่มีอีเมล -> ผู้รับคือผู้มีอำนาจเท่านั้น
+    const flowMail = await mailForCustomer(flow.customerNumber);
+    check(CAT, 'ลงทะเบียนลูกค้า: ผู้รับคือผู้มีอำนาจทุกคน (CHECKER/HEAD/ADMIN ที่ active และมีอีเมลจริง)', {
+      input: `type=CUSTOMER_REGISTERED, customerNumber=${flow.customerNumber}`,
+      expected: `${approverMails.length} แถว = ${approverMails.join(',')}`,
+      actual: `${flowMail.length} แถว = ${flowMail.map((r) => r.recipientEmail).join(',')}`,
+      pass:
+        flowMail.length === approverMails.length &&
+        [...flowMail.map((r) => r.recipientEmail)].sort().join(',') === [...approverMails].sort().join(','),
+      note: 'MAKER ที่เป็นคนสร้างไม่ได้อยู่ในรายชื่อผู้มีอำนาจ จึงไม่มีเมลถึงตัวเองโดยธรรมชาติของ role',
+    });
+    check(CAT, 'ลูกค้าไม่มีอีเมล: ไม่มีฉบับส่งถึงลูกค้า และทุกแถว loanId IS NULL (ไม่ผูกกับรายการกู้)', {
+      input: 'customerId/loanId ของแถวทั้งชุด',
+      expected: '0 แถวที่มี customerId + loanId NULL ทุกแถว',
+      actual: `customerRows=${flowMail.filter((r) => r.customerId !== null).length}, loanIdNull=${flowMail.filter((r) => r.loanId === null).length}/${flowMail.length}`,
+      pass: flowMail.every((r) => r.loanId === null) && flowMail.every((r) => r.customerId === null),
+    });
+
+    const flowPayload = payloadOf(flowMail[0] ?? {});
+    check(CAT, 'payload ครบตาม template: ชื่อลูกค้า เลขลูกค้า phone email สถานะ KYC ผู้สร้าง วันที่', {
+      input: 'unseal(payload) ของแถวแรก',
+      expected: `customerName=${flow.fullName}, customerNumber=${flow.customerNumber}, phone=${flow.phone}, email='', kycStatus=<label>, createdByName=${makerName}, registeredDate=YYYY-MM-DD`,
+      actual: JSON.stringify({
+        customerName: flowPayload.customerName,
+        customerNumber: flowPayload.customerNumber,
+        phone: flowPayload.phone,
+        email: flowPayload.email,
+        kycStatusChars: String(flowPayload.kycStatus ?? '').length,
+        createdByName: flowPayload.createdByName,
+        registeredDate: flowPayload.registeredDate,
+      }),
+      pass:
+        flowPayload.customerName === flow.fullName &&
+        flowPayload.customerNumber === flow.customerNumber &&
+        flowPayload.phone === flow.phone &&
+        flowPayload.email === '' &&
+        String(flowPayload.kycStatus).length > 0 &&
+        flowPayload.createdByName === makerName &&
+        /^\d{4}-\d{2}-\d{2}$/.test(String(flowPayload.registeredDate)),
+      note: 'kycStatus เป็นป้ายชื่อภาษาลาว จึงตรวจว่ามีข้อความแทนการเทียบ literal เพื่อให้ suite ไม่พึ่ง locale',
+    });
+
+    // (2) ลูกค้ามีอีเมล -> ได้สำเนาของตัวเองด้วย หนึ่งฉบับต่อหนึ่งกล่องจดหมาย
+    const notifyEmail = `tst_kyc_notify_${String(Date.now()).slice(-6)}@test.local`;
+    const withMail = await api('POST', '/api/customers', {
+      token: op1,
+      body: { fullName: 'Test Kyc Notified', phone: '020999998', nationalId: 'kyc-notify', email: notifyEmail },
+    });
+    statusCheck(CAT, 'สร้างลูกค้าพร้อมอีเมล: 201', withMail, 201, { input: `POST /api/customers (${notifyEmail})` });
+    const notified = withMail.json?.customer;
+    const notifiedMail = await mailForCustomer(notified?.customerNumber ?? '');
+    check(CAT, 'ลูกค้ามีอีเมล: มีฉบับถึงลูกค้าเพิ่มมาหนึ่งฉบับ (ผู้มีอำนาจ + ลูกค้า)', {
+      input: `customerNumber=${notified?.customerNumber}`,
+      expected: `${approverMails.length + 1} แถว และถึง ${notifyEmail} พอดี 1 ฉบับ`,
+      actual: `${notifiedMail.length} แถว, ถึงลูกค้า=${notifiedMail.filter((r) => r.customerId === notified?.id).length}`,
+      pass:
+        notifiedMail.length === approverMails.length + 1 &&
+        notifiedMail.filter((r) => r.recipientEmail === notifyEmail).length === 1 &&
+        notifiedMail.filter((r) => r.customerId === notified?.id).length === 1,
+    });
+
+    // (3) ผู้มีอำนาจสร้างลูกค้าเอง -> ไม่เมลให้ตัวเอง แต่คนอื่นยังครบ
+    const byAdmin = await api('POST', '/api/customers', {
+      token: admin,
+      body: { fullName: 'Test Kyc By Admin', phone: '020999997', nationalId: 'kyc-notify-admin' },
+    });
+    statusCheck(CAT, 'ADMIN สร้างลูกค้า: 201', byAdmin, 201, { input: 'POST /api/customers as ADMIN' });
+    const adminCustomer = byAdmin.json?.customer;
+    const adminOwnMail = await actorEmail(USER_NAMES.admin);
+    const adminCreated = await mailForCustomer(adminCustomer?.customerNumber ?? '');
+    check(CAT, 'ผู้กระทำเป็นผู้มีอำนาจ: ไม่ส่งเมลหาตัวเอง ผู้รับที่เหลือยังครบตามจำนวน', {
+      input: `actor=${USER_NAMES.admin} (${adminOwnMail})`,
+      expected: `${approverMails.length - 1} แถว และไม่มีฉบับถึง ${adminOwnMail}`,
+      actual: `${adminCreated.length} แถว, ถึงผู้สร้าง=${adminCreated.filter((r) => r.recipientEmail === adminOwnMail).length}`,
+      pass:
+        adminCreated.length === approverMails.length - 1 &&
+        !adminCreated.some((r) => r.recipientEmail === adminOwnMail) &&
+        payloadOf(adminCreated[0] ?? {}).createdByName === (await actorFullName(USER_NAMES.admin)),
+      note: 'staffAudience กรอง actorUserId ออก จึงไม่มีการแจ้งคนที่กดสร้างเองซ้ำ',
+    });
+  } finally {
+    if (notifyIds.length) {
+      await conn.query('DELETE FROM notification_outbox WHERE id IN (?)', [[...new Set(notifyIds)]]).catch(() => undefined);
+    }
+  }
 
   // ---------------------------------------------------------------- state + checklist
   const initial = await api('GET', `${base}/documents`, { token: op1 });

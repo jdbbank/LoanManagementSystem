@@ -2,7 +2,7 @@
 // Console output stays ASCII-only (Windows cp1252 console); the Thai case text lives in results.json.
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { BASE, api, buildContext, cases, summary } from './lib/harness.mjs';
+import { BASE, api, buildContext, cases, pinPolicies, summary } from './lib/harness.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 
@@ -22,6 +22,10 @@ const SUITES = [
   ['13-config', './suites/13-config.mjs'],
   ['14-concurrency', './suites/14-concurrency.mjs'],
   ['15-invariants', './suites/15-invariants.mjs'],
+  ['16-interest', './suites/16-interest.mjs'],
+  ['17-collection', './suites/17-collection.mjs'],
+  ['18-hardship', './suites/18-hardship.mjs'],
+  ['19-evidence', './suites/19-evidence.mjs'],
 ];
 
 const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
@@ -40,7 +44,26 @@ for (const [name, spec] of SUITES) {
   loaded.push([name, mod]);
 }
 
-let index = 0;
+/**
+ * reset-db keeps `system_config` on purpose, so the run installs the shipped defaults every case below
+ * is written against — above all the auto-debit switch, whose live timer would otherwise move money on
+ * the seeded book mid-run. Whatever was live before the run goes back when it ends, including on a
+ * crash. Suites that change a policy inside their own cases pin it again for themselves.
+ *
+ * The security namespace is deliberately excluded: its defaults are 3 failed attempts, a 90-day idle
+ * lock and a 30-day password age, and suites that sign in as seeded accounts would start meeting the
+ * lock and the rotation gate. Suite 20 pins it for its own cases instead.
+ */
+const POLICY_NAMESPACES = ['kyc', 'password', 'payment', 'avatar', 'collateral', 'evidence'];
+let policies;
+try {
+  policies = await pinPolicies(ctx.api, POLICY_NAMESPACES);
+} catch (err) {
+  console.error(`could not pin the run policies: ${String(err?.message ?? err)}`);
+  await ctx.conn.end();
+  process.exit(1);
+}
+
 for (const [name, mod] of loaded) {
   const before = cases.length;
   try {
@@ -65,11 +88,16 @@ for (const [name, mod] of loaded) {
     `${new Date().toISOString()} ${cat.padEnd(20)} ${String(done.length).padStart(3)} cases  ${String(done.length - failed.length).padStart(3)} pass  ${String(failed.length).padStart(3)} FAIL  ${failed.map((f) => f.id).join(',')}`
   );
 }
+const restored = await policies
+  .restore()
+  .then((responses) => responses.map((r) => r.status).join(','))
+  .catch((err) => `FAILED ${String(err?.message ?? err)}`);
+await ctx.conn.end();
 
 const s = summary();
 writeFileSync(`${HERE}results.json`, JSON.stringify({ generatedAt: new Date().toISOString(), base: BASE, summary: s, cases }, null, 2));
-await ctx.conn.end();
 console.log('-'.repeat(64));
 for (const [cat, b] of Object.entries(s.byCat)) console.log(`${cat.padEnd(22)} ${String(b.pass).padStart(4)} pass ${String(b.fail).padStart(4)} fail`);
 console.log(`TOTAL ${s.total} cases, ${s.failures.length} failures -> scripts/test/results.json`);
+console.log(`policy namespaces pinned for the run, live values restored (${restored})`);
 process.exit(s.failures.length ? 2 : 0);
